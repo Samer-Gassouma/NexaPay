@@ -62,6 +62,8 @@ export default function PayWalletPage() {
   const loginHref = useMemo(() => {
     return `/login?next=${encodeURIComponent(`/pay/${walletAddress}?amount=${amountMillimes}`)}`;
   }, [walletAddress, amountMillimes]);
+  const inputClass =
+    "h-10 rounded-xl border border-white/15 bg-white/5 px-3 text-white placeholder:text-white/45 outline-none transition focus:border-[var(--brand)]";
 
   useEffect(() => {
     const search = new URLSearchParams(window.location.search);
@@ -183,7 +185,7 @@ export default function PayWalletPage() {
           <input
             type="number"
             min={1}
-            className="h-10 w-40 rounded-xl border border-ink/15 px-3"
+            className={`${inputClass} w-40`}
             value={amountTnd}
             onChange={(e) => setAmountTnd(Number(e.target.value))}
           />
@@ -203,28 +205,28 @@ export default function PayWalletPage() {
 
           <form className="mt-3 grid gap-3" onSubmit={submitWalletPayment}>
             <input
-              className="h-10 rounded-xl border border-ink/15 px-3"
+              className={inputClass}
               placeholder="X-Account-Token"
               value={token}
               onChange={(e) => setToken(e.target.value)}
               required
             />
             <input
-              className="h-10 rounded-xl border border-ink/15 px-3"
+              className={inputClass}
               placeholder="Your wallet address (NXP...)"
               value={payerAddress}
               onChange={(e) => setPayerAddress(e.target.value)}
               required
             />
             <input
-              className="h-10 rounded-xl border border-ink/15 px-3"
+              className={inputClass}
               placeholder="PIN"
               value={walletPin}
               onChange={(e) => setWalletPin(e.target.value)}
               required
             />
             <input
-              className="h-10 rounded-xl border border-ink/15 px-3"
+              className={inputClass}
               placeholder="Memo"
               value={walletMemo}
               onChange={(e) => setWalletMemo(e.target.value)}
@@ -247,14 +249,14 @@ export default function PayWalletPage() {
 
           <form className="mt-3 grid gap-3" onSubmit={submitCardPayment}>
             <input
-              className="h-10 rounded-xl border border-ink/15 px-3"
+              className={inputClass}
               placeholder="Card holder"
               value={cardHolderName}
               onChange={(e) => setCardHolderName(e.target.value)}
               required
             />
             <input
-              className="h-10 rounded-xl border border-ink/15 px-3"
+              className={inputClass}
               placeholder="Card number"
               value={cardNumber}
               onChange={(e) => setCardNumber(e.target.value)}
@@ -262,21 +264,21 @@ export default function PayWalletPage() {
             />
             <div className="grid grid-cols-3 gap-2">
               <input
-                className="h-10 rounded-xl border border-ink/15 px-3"
+                className={inputClass}
                 placeholder="MM"
                 value={cardExpiryMonth}
                 onChange={(e) => setCardExpiryMonth(e.target.value)}
                 required
               />
               <input
-                className="h-10 rounded-xl border border-ink/15 px-3"
+                className={inputClass}
                 placeholder="YYYY"
                 value={cardExpiryYear}
                 onChange={(e) => setCardExpiryYear(e.target.value)}
                 required
               />
               <input
-                className="h-10 rounded-xl border border-ink/15 px-3"
+                className={inputClass}
                 placeholder="CVV"
                 value={cardCvv}
                 onChange={(e) => setCardCvv(e.target.value)}
@@ -284,7 +286,7 @@ export default function PayWalletPage() {
               />
             </div>
             <input
-              className="h-10 rounded-xl border border-ink/15 px-3"
+              className={inputClass}
               placeholder="PIN"
               value={cardPin}
               onChange={(e) => setCardPin(e.target.value)}

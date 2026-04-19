@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Sora, Space_Grotesk } from "next/font/google";
 
 import "./globals.css";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 
 const sora = Sora({
   subsets: ["latin"],
@@ -22,7 +24,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${sora.variable} ${grotesk.variable} font-[var(--font-grotesk)]`}>
-        {children}
+        <Navbar />
+        <div>{children}</div>
+        <Footer />
       </body>
     </html>
   );

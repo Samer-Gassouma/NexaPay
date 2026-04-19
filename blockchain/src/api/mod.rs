@@ -49,6 +49,7 @@ pub struct AppState {
     pub twilio_account_sid: Option<String>,
     pub twilio_auth_token: Option<String>,
     pub twilio_phone_number: Option<String>,
+    pub otp_fallback_code: Option<String>,
 }
 
 pub fn build_router(state: AppState) -> Router {

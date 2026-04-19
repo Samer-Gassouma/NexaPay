@@ -42,6 +42,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let twilio_account_sid = env::var("TWILIO_ACCOUNT_SID").ok().filter(|v| !v.trim().is_empty());
     let twilio_auth_token = env::var("TWILIO_AUTH_TOKEN").ok().filter(|v| !v.trim().is_empty());
     let twilio_phone_number = env::var("TWILIO_PHONE_NUMBER").ok().filter(|v| !v.trim().is_empty());
+    let otp_fallback_code = env::var("OTP_FALLBACK_CODE")
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty());
 
     let pool = connect(&database_url).await?;
     run_migrations(&pool).await?;
@@ -83,6 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         twilio_account_sid,
         twilio_auth_token,
         twilio_phone_number,
+        otp_fallback_code,
     };
 
     let cors = CorsLayer::new()

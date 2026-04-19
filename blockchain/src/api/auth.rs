@@ -51,6 +51,7 @@ pub struct RegisterResponse {
     phone_hint: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     dev_otp: Option<String>,
+    fallback_available: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -102,6 +103,7 @@ pub struct RequestOtpLoginResponse {
     phone_hint: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     dev_otp: Option<String>,
+    fallback_available: bool,
 }
 
 pub async fn register(
@@ -330,6 +332,7 @@ pub async fn register(
         message: "Keep your private key safe. It will never be shown again.".to_string(),
         phone_hint: Some(mask_phone(&normalized_phone)),
         dev_otp,
+        fallback_available: otp_fallback_enabled(&state),
     }))
 }
 
@@ -456,6 +459,7 @@ pub async fn request_login_otp(
         message: "OTP sent successfully".to_string(),
         phone_hint: mask_phone(&phone),
         dev_otp,
+        fallback_available: otp_fallback_enabled(&state),
     }))
 }
 
@@ -490,6 +494,31 @@ pub async fn verify_login_otp(
     let cin: String = row
         .try_get("cin")
         .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Invalid row data"))?;
+
+    // Fallback code allows support-assisted verification when SMS delivery is unreliable.
+    if otp_fallback_matches(&state, &payload.otp) {
+        let _ = sqlx::query(
+            "UPDATE users
+             SET otp_code_hash = NULL,
+                 otp_expires_at = NULL,
+                 otp_attempts = 0
+             WHERE cin = $1",
+        )
+        .bind(&payload.cin)
+        .execute(&state.pg_pool)
+        .await;
+
+        let token = issue_session_token(&state, &chain_address, &sha256_hex(cin.as_bytes()))
+            .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Token creation failed"))?;
+
+        log_api_call(&state, None, "/auth/login/otp/verify", "POST", 200).await;
+
+        return Ok(Json(LoginResponse {
+            token,
+            chain_address,
+        }));
+    }
+
     let otp_hash: Option<String> = row.try_get("otp_code_hash").ok();
     let otp_expires_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("otp_expires_at").ok();
     let otp_attempts: i32 = row.try_get("otp_attempts").unwrap_or(0);
@@ -594,6 +623,21 @@ fn hash_password(password: &str, cin: &str, pepper: &str) -> String {
 
 fn hash_otp(cin: &str, otp: &str, pepper: &str) -> String {
     sha256_hex(format!("otp:{}:{}:{}", cin, otp, pepper).as_bytes())
+}
+
+fn otp_fallback_enabled(state: &AppState) -> bool {
+    state
+        .otp_fallback_code
+        .as_ref()
+        .map(|code| is_valid_otp(code))
+        .unwrap_or(false)
+}
+
+fn otp_fallback_matches(state: &AppState, provided_otp: &str) -> bool {
+    match state.otp_fallback_code.as_ref() {
+        Some(code) if is_valid_otp(code) => provided_otp == code,
+        _ => false,
+    }
 }
 
 async fn send_otp_sms(

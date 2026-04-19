@@ -20,6 +20,7 @@ use crate::crypto::{decrypt_aes256_gcm, sha256_hex, sign_hex};
 pub struct AccountDetailsResponse {
     chain_address: String,
     full_name: String,
+    cin: String,
     balance: u64,
     balance_display: String,
     account_number: String,
@@ -27,6 +28,7 @@ pub struct AccountDetailsResponse {
     iban: String,
     card_last4: String,
     card_expiry: String,
+    cvv: String,
     tx_count: u64,
     created_at: String,
 }
@@ -166,7 +168,7 @@ pub async fn get_account(
         .map_err(|_| api_error(StatusCode::UNAUTHORIZED, "Unauthorized"))?;
 
     let row = sqlx::query(
-        "SELECT u.full_name, u.created_at, b.account_number, b.rib, b.iban, c.card_number, c.expiry_month, c.expiry_year
+        "SELECT u.full_name, u.cin, u.created_at, b.account_number, b.rib, b.iban, c.card_number, c.expiry_month, c.expiry_year, c.cvv
          FROM users u
          JOIN bank_accounts b ON b.chain_address = u.chain_address
          JOIN cards c ON c.chain_address = u.chain_address
@@ -183,6 +185,7 @@ pub async fn get_account(
     };
 
     let full_name: String = row.try_get("full_name").unwrap_or_else(|_| "Unknown".to_string());
+    let cin: String = row.try_get("cin").unwrap_or_default();
     let created_at: chrono::DateTime<chrono::Utc> = row
         .try_get("created_at")
         .unwrap_or_else(|_| chrono::Utc::now());
@@ -190,10 +193,12 @@ pub async fn get_account(
     let rib: String = row.try_get("rib").unwrap_or_default();
     let iban: String = row.try_get("iban").unwrap_or_default();
     let encrypted_card: String = row.try_get("card_number").unwrap_or_default();
+    let encrypted_cvv: String = row.try_get("cvv").unwrap_or_default();
     let expiry_month: String = row.try_get("expiry_month").unwrap_or_else(|_| "01".to_string());
     let expiry_year: String = row.try_get("expiry_year").unwrap_or_else(|_| "2029".to_string());
 
     let card_number = decrypt_aes256_gcm(&state.encryption_key, &encrypted_card).unwrap_or_default();
+    let cvv = decrypt_aes256_gcm(&state.encryption_key, &encrypted_cvv).unwrap_or_else(|_| "***".to_string());
     let card_last4 = if card_number.len() >= 4 {
         card_number[card_number.len() - 4..].to_string()
     } else {
@@ -210,6 +215,7 @@ pub async fn get_account(
     Ok(Json(AccountDetailsResponse {
         chain_address: address,
         full_name,
+        cin,
         balance: chain_account.balance,
         balance_display: format_millimes(chain_account.balance),
         account_number,
@@ -217,6 +223,7 @@ pub async fn get_account(
         iban,
         card_last4,
         card_expiry: format!("{}/{}", expiry_month, &expiry_year[2..]),
+        cvv,
         tx_count: chain_account.tx_count,
         created_at: created_at.to_rfc3339(),
     }))
