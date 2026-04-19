@@ -1,0 +1,25 @@
+# Rust
+/blockchain/target/
+/blockchain/Cargo.lock
+target/
+
+# Node
+/portal/node_modules/
+/portal/.next/
+node_modules/
+
+# Env
+.env
+.env.*
+
+# Docker
+*.dockerignore
+
+# Editor
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+
+docs

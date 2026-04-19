@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: nexapay
+      POSTGRES_USER: nexapay
+      POSTGRES_PASSWORD: nexapay_secret
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  nexapay-node:
+    build: ./blockchain
+    ports:
+      - "8088:8080"
+    environment:
+      NEXAPAY_DATABASE_URL: postgresql://nexapay:nexapay_secret@postgres:5432/nexapay
+      NEXAPAY_JWT_SECRET: change_this_in_production_64_chars_minimum_change_this_in_production
+      NEXAPAY_ENCRYPTION_KEY: 00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+      NEXAPAY_SYSTEM_PRIVATE_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      NEXAPAY_PORT: 8080
+      # Twilio credentials should be provided via environment or .env file in production
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-""}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-""}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-""}
+    depends_on:
+      - postgres
+
+  portal:
+    build:
+      context: ./portal
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8088
+    ports:
+      - "3001:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8088
+    depends_on:
+      - nexapay-node
+
+volumes:
+  pgdata:

@@ -1,0 +1,685 @@
+use axum::http::{HeaderMap, HeaderValue, StatusCode};
+use axum::Json;
+use chrono::Utc;
+use jwt_simple::algorithms::MACLike;
+use jwt_simple::prelude::{Claims, Duration};
+use rand::rngs::OsRng;
+use rand::RngCore;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
+use sqlx::Row;
+use uuid::Uuid;
+
+use crate::api::AppState;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionClaims {
+    pub address: String,
+    pub cin_hash: String,
+}
+
+#[derive(Debug, Clone)]
+pub enum ApiPrincipal {
+    Bank {
+        prefix: String,
+        key_id: Option<Uuid>,
+        permissions: Vec<String>,
+        rate_limit_per_minute: i32,
+        daily_limit: i32,
+    },
+    Developer {
+        prefix: String,
+        plan: String,
+        call_limit: i32,
+        owner_id: Option<Uuid>,
+        key_id: Option<Uuid>,
+        permissions: Vec<String>,
+        rate_limit_per_minute: i32,
+        daily_limit: i32,
+    },
+    Merchant {
+        prefix: String,
+        merchant_id: Uuid,
+        key_id: Uuid,
+        permissions: Vec<String>,
+        rate_limit_per_minute: i32,
+        daily_limit: i32,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub enum AuthError {
+    Unauthorized,
+    Forbidden,
+    TooManyRequests { retry_after_seconds: u64 },
+    Internal,
+}
+
+pub fn hash_api_key(value: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(value.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
+pub fn api_principal_prefix(principal: &ApiPrincipal) -> String {
+    match principal {
+        ApiPrincipal::Bank { prefix, .. } => prefix.clone(),
+        ApiPrincipal::Developer { prefix, .. } => prefix.clone(),
+        ApiPrincipal::Merchant { prefix, .. } => prefix.clone(),
+    }
+}
+
+pub fn api_principal_kind(principal: &ApiPrincipal) -> &'static str {
+    match principal {
+        ApiPrincipal::Bank { .. } => "bank",
+        ApiPrincipal::Developer { .. } => "developer",
+        ApiPrincipal::Merchant { .. } => "merchant",
+    }
+}
+
+pub fn api_principal_owner_id(principal: &ApiPrincipal) -> Option<Uuid> {
+    match principal {
+        ApiPrincipal::Bank { .. } => None,
+        ApiPrincipal::Developer { owner_id, .. } => *owner_id,
+        ApiPrincipal::Merchant { merchant_id, .. } => Some(*merchant_id),
+    }
+}
+
+pub fn parse_permissions_csv(raw: &str) -> Vec<String> {
+    raw.split(',')
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+        .collect()
+}
+
+pub fn permissions_to_csv(values: &[String]) -> String {
+    values.join(",")
+}
+
+pub fn default_permissions(owner_type: &str) -> Vec<String> {
+    match owner_type {
+        "merchant" => vec![
+            "intents:write".to_string(),
+            "intents:read".to_string(),
+            "refunds:write".to_string(),
+            "balance:read".to_string(),
+            "transactions:read".to_string(),
+            "payouts:write".to_string(),
+            "webhooks:manage".to_string(),
+        ],
+        "developer" => vec![
+            "merchant:register".to_string(),
+            "api_keys:manage".to_string(),
+            "dev:docs".to_string(),
+        ],
+        "bank" => vec![
+            "network:read".to_string(),
+            "accounts:read".to_string(),
+        ],
+        _ => vec!["*".to_string()],
+    }
+}
+
+pub fn has_permission(principal: &ApiPrincipal, needed: &str) -> bool {
+    let permissions = match principal {
+        ApiPrincipal::Bank {
+            key_id,
+            permissions,
+            ..
+        } => {
+            if key_id.is_none() {
+                return true;
+            }
+            permissions
+        }
+        ApiPrincipal::Developer {
+            key_id,
+            permissions,
+            ..
+        } => {
+            if key_id.is_none() {
+                return true;
+            }
+            permissions
+        }
+        ApiPrincipal::Merchant { permissions, .. } => permissions,
+    };
+
+    permissions.iter().any(|granted| {
+        if granted == "*" || granted == needed {
+            return true;
+        }
+        if let Some(prefix) = granted.strip_suffix(":*") {
+            return needed.starts_with(&format!("{prefix}:"));
+        }
+        false
+    })
+}
+
+pub fn create_structured_api_key(owner_type: &str) -> (String, String, String, String) {
+    let owner_tag = owner_type.to_lowercase();
+    let mut random = [0u8; 24];
+    OsRng.fill_bytes(&mut random);
+    let entropy = sha256_hex(&random);
+    let token = &entropy[..24];
+    let body = format!("nxp_{owner_tag}_{token}");
+    let checksum = &sha256_hex(format!("{owner_tag}:{token}:nexapay").as_bytes())[..8];
+    let plain = format!("{body}_{checksum}");
+    let hash = hash_api_key(&plain);
+    let prefix = plain.chars().take(16).collect::<String>();
+    (plain, hash, prefix, checksum.to_string())
+}
+
+pub fn validate_structured_api_key(raw_key: &str) -> bool {
+    let parts = raw_key.split('_').collect::<Vec<_>>();
+    if parts.len() != 4 || parts[0] != "nxp" {
+        return false;
+    }
+    let owner_tag = parts[1];
+    let token = parts[2];
+    let checksum = parts[3];
+    if token.len() < 16 || checksum.len() != 8 {
+        return false;
+    }
+    let expected = &sha256_hex(format!("{owner_tag}:{token}:nexapay").as_bytes())[..8];
+    checksum == expected
+}
+
+pub fn issue_session_token(state: &AppState, address: &str, cin_hash: &str) -> Result<String, StatusCode> {
+    let claims = Claims::with_custom_claims(
+        SessionClaims {
+            address: address.to_string(),
+            cin_hash: cin_hash.to_string(),
+        },
+        Duration::from_hours(24),
+    );
+
+    state
+        .jwt_key
+        .authenticate(claims)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+pub fn verify_session_token(state: &AppState, token: &str) -> Result<SessionClaims, StatusCode> {
+    let claims = state
+        .jwt_key
+        .verify_token::<SessionClaims>(token, None)
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+    Ok(claims.custom)
+}
+
+pub fn extract_account_token(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("X-Account-Token")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.to_string())
+}
+
+pub fn extract_api_key(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("X-API-Key")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.to_string())
+}
+
+pub async fn require_account_token(
+    state: &AppState,
+    headers: &HeaderMap,
+    address: &str,
+) -> Result<SessionClaims, StatusCode> {
+    let token = extract_account_token(headers).ok_or(StatusCode::UNAUTHORIZED)?;
+    let claims = verify_session_token(state, &token)?;
+    if claims.address != address {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    Ok(claims)
+}
+
+pub async fn require_api_key(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<ApiPrincipal, AuthError> {
+    let raw_key = extract_api_key(headers).ok_or(AuthError::Unauthorized)?;
+
+    if let Some(retry_after) = locked_retry_after_seconds(state, &raw_key).await {
+        return Err(AuthError::TooManyRequests {
+            retry_after_seconds: retry_after,
+        });
+    }
+
+    let principal = resolve_api_key(state, &raw_key).await?;
+
+    clear_auth_failures(state, &raw_key).await;
+    enforce_rate_limit(state, &principal).await?;
+    touch_last_used(state, &principal).await;
+    Ok(principal)
+}
+
+pub async fn require_bank_api_key(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<ApiPrincipal, AuthError> {
+    let principal = require_api_key(state, headers).await?;
+    if !matches!(principal, ApiPrincipal::Bank { .. }) {
+        return Err(AuthError::Forbidden);
+    }
+    Ok(principal)
+}
+
+pub async fn try_api_key(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<Option<ApiPrincipal>, AuthError> {
+    match extract_api_key(headers) {
+        Some(raw_key) => {
+            if let Some(retry_after) = locked_retry_after_seconds(state, &raw_key).await {
+                return Err(AuthError::TooManyRequests {
+                    retry_after_seconds: retry_after,
+                });
+            }
+            let principal = resolve_api_key(state, &raw_key).await?;
+            clear_auth_failures(state, &raw_key).await;
+            enforce_rate_limit(state, &principal).await?;
+            touch_last_used(state, &principal).await;
+            Ok(Some(principal))
+        }
+        None => Ok(None),
+    }
+}
+
+async fn resolve_api_key(state: &AppState, raw_key: &str) -> Result<ApiPrincipal, AuthError> {
+    let looks_structured = raw_key.starts_with("nxp_");
+    if looks_structured && !validate_structured_api_key(raw_key) {
+        register_auth_failure(state, raw_key).await;
+        return Err(AuthError::Unauthorized);
+    }
+
+    let api_key_hash = hash_api_key(raw_key);
+
+    if let Ok(Some(row)) = sqlx::query(
+        "SELECT id, owner_type, owner_id, prefix, permissions, rate_limit_per_minute, daily_limit, status, expires_at\n         FROM api_keys WHERE key_hash = $1 LIMIT 1",
+    )
+    .bind(&api_key_hash)
+    .fetch_optional(&state.pg_pool)
+    .await
+    {
+        let status: String = row.try_get("status").unwrap_or_else(|_| "active".to_string());
+        if status != "active" {
+            register_auth_failure(state, raw_key).await;
+            return Err(AuthError::Unauthorized);
+        }
+
+        let expires_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("expires_at").ok();
+        if let Some(expires_at) = expires_at {
+            if expires_at < Utc::now() {
+                register_auth_failure(state, raw_key).await;
+                return Err(AuthError::Unauthorized);
+            }
+        }
+
+        let key_id: Uuid = row.try_get("id").map_err(|_| AuthError::Internal)?;
+        let owner_type: String = row.try_get("owner_type").unwrap_or_default();
+        let owner_id: Option<Uuid> = row.try_get("owner_id").ok();
+        let prefix: String = row.try_get("prefix").unwrap_or_else(|_| "nxp_key".to_string());
+        let permissions = parse_permissions_csv(
+            &row.try_get::<String, _>("permissions")
+                .unwrap_or_else(|_| "*".to_string()),
+        );
+        let rate_limit_per_minute: i32 = row.try_get("rate_limit_per_minute").unwrap_or(60);
+        let daily_limit: i32 = row.try_get("daily_limit").unwrap_or(10000);
+
+        return match owner_type.as_str() {
+            "merchant" => {
+                if let Some(merchant_id) = owner_id {
+                    Ok(ApiPrincipal::Merchant {
+                        prefix,
+                        merchant_id,
+                        key_id,
+                        permissions,
+                        rate_limit_per_minute,
+                        daily_limit,
+                    })
+                } else {
+                    register_auth_failure(state, raw_key).await;
+                    Err(AuthError::Unauthorized)
+                }
+            }
+            "developer" => {
+                let (plan, call_limit) = if let Some(dev_id) = owner_id {
+                    if let Ok(Some(dev_row)) = sqlx::query(
+                        "SELECT plan, call_limit FROM developers WHERE id = $1 AND is_active = TRUE LIMIT 1",
+                    )
+                    .bind(dev_id)
+                    .fetch_optional(&state.pg_pool)
+                    .await
+                    {
+                        (
+                            dev_row
+                                .try_get::<String, _>("plan")
+                                .unwrap_or_else(|_| "free".to_string()),
+                            dev_row.try_get::<i32, _>("call_limit").unwrap_or(1000),
+                        )
+                    } else {
+                        ("free".to_string(), 1000)
+                    }
+                } else {
+                    ("free".to_string(), 1000)
+                };
+
+                Ok(ApiPrincipal::Developer {
+                    prefix,
+                    plan,
+                    call_limit,
+                    owner_id,
+                    key_id: Some(key_id),
+                    permissions,
+                    rate_limit_per_minute,
+                    daily_limit,
+                })
+            }
+            "bank" => Ok(ApiPrincipal::Bank {
+                prefix,
+                key_id: Some(key_id),
+                permissions,
+                rate_limit_per_minute,
+                daily_limit,
+            }),
+            _ => {
+                register_auth_failure(state, raw_key).await;
+                Err(AuthError::Unauthorized)
+            }
+        };
+    }
+
+    if let Ok(Some(row)) = sqlx::query(
+        "SELECT api_key_prefix FROM banks WHERE api_key = $1 AND subscription_status = 'active'",
+    )
+    .bind(&api_key_hash)
+    .fetch_optional(&state.pg_pool)
+    .await
+    {
+        let prefix: String = row.try_get("api_key_prefix").unwrap_or_else(|_| "nxp_bank".to_string());
+        return Ok(ApiPrincipal::Bank {
+            prefix,
+            key_id: None,
+            permissions: default_permissions("bank"),
+            rate_limit_per_minute: 120,
+            daily_limit: 200_000,
+        });
+    }
+
+    if let Ok(Some(row)) = sqlx::query(
+        "SELECT id, api_key_prefix, plan, call_limit FROM developers WHERE api_key = $1 AND is_active = TRUE",
+    )
+    .bind(&api_key_hash)
+    .fetch_optional(&state.pg_pool)
+    .await
+    {
+        let prefix: String = row.try_get("api_key_prefix").unwrap_or_else(|_| "nxp_dev_".to_string());
+        let plan: String = row.try_get("plan").unwrap_or_else(|_| "free".to_string());
+        let call_limit: i32 = row.try_get("call_limit").unwrap_or(1000);
+        let owner_id: Option<Uuid> = row.try_get("id").ok();
+        return Ok(ApiPrincipal::Developer {
+            prefix,
+            plan,
+            call_limit,
+            owner_id,
+            key_id: None,
+            permissions: default_permissions("developer"),
+            rate_limit_per_minute: 60,
+            daily_limit: call_limit.max(1000),
+        });
+    }
+
+    register_auth_failure(state, raw_key).await;
+    Err(AuthError::Unauthorized)
+}
+
+pub async fn enforce_rate_limit(state: &AppState, principal: &ApiPrincipal) -> Result<(), AuthError> {
+    match principal {
+        ApiPrincipal::Bank {
+            key_id,
+            prefix,
+            rate_limit_per_minute,
+            daily_limit,
+            ..
+        } => {
+            if key_id.is_none() {
+                return Ok(());
+            }
+            enforce_window_limits(state, prefix, *rate_limit_per_minute as i64, *daily_limit as i64).await
+        }
+        ApiPrincipal::Developer {
+            prefix,
+            plan,
+            call_limit,
+            key_id,
+            rate_limit_per_minute,
+            daily_limit,
+            ..
+        } => {
+            if key_id.is_some() {
+                return enforce_window_limits(
+                    state,
+                    prefix,
+                    (*rate_limit_per_minute).max(20) as i64,
+                    (*daily_limit).max(*call_limit) as i64,
+                )
+                .await;
+            }
+
+            let legacy_day_limit = if plan == "pro" {
+                1_000_000i64
+            } else if plan == "starter" {
+                10_000i64
+            } else {
+                (*call_limit).max(1000) as i64
+            };
+
+            let row = sqlx::query(
+                "SELECT COUNT(*) AS count FROM api_logs WHERE api_key_prefix = $1 AND called_at::date = NOW()::date",
+            )
+            .bind(prefix)
+            .fetch_one(&state.pg_pool)
+            .await
+            .map_err(|_| AuthError::Internal)?;
+
+            let count: i64 = row.try_get("count").unwrap_or(0);
+            if count >= legacy_day_limit {
+                return Err(AuthError::TooManyRequests {
+                    retry_after_seconds: seconds_until_next_day(),
+                });
+            }
+
+            Ok(())
+        }
+        ApiPrincipal::Merchant {
+            prefix,
+            rate_limit_per_minute,
+            daily_limit,
+            ..
+        } => {
+            enforce_window_limits(
+                state,
+                prefix,
+                (*rate_limit_per_minute).max(20) as i64,
+                (*daily_limit).max(1000) as i64,
+            )
+            .await
+        }
+    }
+}
+
+pub fn auth_error_response(err: AuthError, message: &str) -> (StatusCode, HeaderMap, Json<Value>) {
+    let (status, retry_after) = match err {
+        AuthError::Unauthorized => (StatusCode::UNAUTHORIZED, None),
+        AuthError::Forbidden => (StatusCode::FORBIDDEN, None),
+        AuthError::Internal => (StatusCode::INTERNAL_SERVER_ERROR, None),
+        AuthError::TooManyRequests {
+            retry_after_seconds,
+        } => (StatusCode::TOO_MANY_REQUESTS, Some(retry_after_seconds)),
+    };
+
+    let mut headers = HeaderMap::new();
+    if let Some(seconds) = retry_after {
+        if let Ok(value) = HeaderValue::from_str(&seconds.to_string()) {
+            headers.insert("retry-after", value);
+        }
+    }
+
+    (
+        status,
+        headers,
+        Json(json!({
+            "success": false,
+            "error": message
+        })),
+    )
+}
+
+pub async fn log_api_call(
+    state: &AppState,
+    principal: Option<&ApiPrincipal>,
+    endpoint: &str,
+    method: &str,
+    status_code: i32,
+) {
+    let prefix = principal.map(|p| match p {
+        ApiPrincipal::Bank { prefix, .. } => prefix.clone(),
+        ApiPrincipal::Developer { prefix, .. } => prefix.clone(),
+        ApiPrincipal::Merchant { prefix, .. } => prefix.clone(),
+    });
+    let prefix_for_log = prefix.clone();
+
+    let _ = sqlx::query(
+        "INSERT INTO api_logs (api_key_prefix, endpoint, method, status_code) VALUES ($1, $2, $3, $4)",
+    )
+    .bind(prefix_for_log)
+    .bind(endpoint)
+    .bind(method)
+    .bind(status_code)
+    .execute(&state.pg_pool)
+    .await;
+
+    if let Some(prefix) = prefix {
+        let _ = sqlx::query(
+            "UPDATE developers SET monthly_calls = monthly_calls + 1 WHERE api_key_prefix = $1 AND is_active = TRUE",
+        )
+        .bind(prefix)
+        .execute(&state.pg_pool)
+        .await;
+    }
+}
+
+fn seconds_until_next_day() -> u64 {
+    let now = Utc::now();
+    let tomorrow = (now + chrono::Duration::days(1)).date_naive();
+    let midnight_tomorrow = tomorrow.and_hms_opt(0, 0, 0).unwrap_or_else(|| {
+        now.date_naive()
+            .and_hms_opt(23, 59, 59)
+            .expect("valid fallback time")
+    });
+    (midnight_tomorrow.and_utc().timestamp() - now.timestamp()).max(1) as u64
+}
+
+fn seconds_until_next_minute() -> u64 {
+    let now = Utc::now();
+    let sec = now.timestamp() % 60;
+    (60 - sec).max(1) as u64
+}
+
+async fn enforce_window_limits(
+    state: &AppState,
+    prefix: &str,
+    per_minute_limit: i64,
+    daily_limit: i64,
+) -> Result<(), AuthError> {
+    let minute_row = sqlx::query(
+        "SELECT COUNT(*) AS count FROM api_logs WHERE api_key_prefix = $1 AND called_at >= NOW() - INTERVAL '1 minute'",
+    )
+    .bind(prefix)
+    .fetch_one(&state.pg_pool)
+    .await
+    .map_err(|_| AuthError::Internal)?;
+
+    let minute_count: i64 = minute_row.try_get("count").unwrap_or(0);
+    if minute_count >= per_minute_limit {
+        return Err(AuthError::TooManyRequests {
+            retry_after_seconds: seconds_until_next_minute(),
+        });
+    }
+
+    let day_row = sqlx::query(
+        "SELECT COUNT(*) AS count FROM api_logs WHERE api_key_prefix = $1 AND called_at::date = NOW()::date",
+    )
+    .bind(prefix)
+    .fetch_one(&state.pg_pool)
+    .await
+    .map_err(|_| AuthError::Internal)?;
+
+    let day_count: i64 = day_row.try_get("count").unwrap_or(0);
+    if day_count >= daily_limit {
+        return Err(AuthError::TooManyRequests {
+            retry_after_seconds: seconds_until_next_day(),
+        });
+    }
+
+    Ok(())
+}
+
+fn auth_failure_key(raw_key: &str) -> String {
+    hash_api_key(raw_key).chars().take(16).collect::<String>()
+}
+
+async fn locked_retry_after_seconds(state: &AppState, raw_key: &str) -> Option<u64> {
+    let now = Utc::now().timestamp();
+    let key = auth_failure_key(raw_key);
+    let map = state.auth_failures.lock().await;
+    if let Some((_, locked_until)) = map.get(&key) {
+        if *locked_until > now {
+            return Some((*locked_until - now) as u64);
+        }
+    }
+    None
+}
+
+async fn register_auth_failure(state: &AppState, raw_key: &str) {
+    let now = Utc::now().timestamp();
+    let key = auth_failure_key(raw_key);
+    let mut map = state.auth_failures.lock().await;
+    let entry = map.entry(key).or_insert((0, 0));
+    entry.0 += 1;
+
+    if entry.0 >= 5 {
+        entry.0 = 0;
+        entry.1 = now + (5 * 60);
+    }
+}
+
+async fn clear_auth_failures(state: &AppState, raw_key: &str) {
+    let key = auth_failure_key(raw_key);
+    let mut map = state.auth_failures.lock().await;
+    map.remove(&key);
+}
+
+async fn touch_last_used(state: &AppState, principal: &ApiPrincipal) {
+    let key_id = match principal {
+        ApiPrincipal::Bank { key_id, .. } => *key_id,
+        ApiPrincipal::Developer { key_id, .. } => *key_id,
+        ApiPrincipal::Merchant { key_id, .. } => Some(*key_id),
+    };
+
+    if let Some(key_id) = key_id {
+        let _ = sqlx::query("UPDATE api_keys SET last_used_at = NOW() WHERE id = $1")
+            .bind(key_id)
+            .execute(&state.pg_pool)
+            .await;
+    }
+}
+
+fn sha256_hex(data: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    hex::encode(hasher.finalize())
+}
