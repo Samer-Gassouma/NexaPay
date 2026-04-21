@@ -219,7 +219,7 @@ docker compose up -d --build
 Current published ports (from compose):
 
 - Portal: http://localhost:3001
-- Backend API: http://localhost:8088
+- Backend API: https://backend.nexapay.space
 - PostgreSQL: localhost:5433
 
 Stop services:

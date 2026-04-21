@@ -2,13 +2,13 @@
 
 ## Prerequisites
 
-- API running on http://localhost:8080
+- API running on https://backend.nexapay.space
 - jq installed
 
 ## 1) Register a Developer
 
 ```bash
-DEV=$(curl -s -X POST http://localhost:8080/dev/register \
+DEV=$(curl -s -X POST https://backend.nexapay.space/dev/register \
   -H 'Content-Type: application/json' \
   -d '{"company_name":"Startup XYZ","contact_name":"Founder","email":"dev@startup.tn","plan":"free"}')
 DEV_KEY=$(echo "$DEV" | jq -r '.api_key')
@@ -17,7 +17,7 @@ DEV_KEY=$(echo "$DEV" | jq -r '.api_key')
 ## 2) Register a User (with API key attribution)
 
 ```bash
-REG=$(curl -s -X POST http://localhost:8080/auth/register \
+REG=$(curl -s -X POST https://backend.nexapay.space/auth/register \
   -H 'Content-Type: application/json' \
   -H "X-API-Key: $DEV_KEY" \
   -d '{
@@ -36,7 +36,7 @@ ADDR=$(echo "$REG" | jq -r '.chain_address')
 ## 3) Login and get account token
 
 ```bash
-TOKEN=$(curl -s -X POST http://localhost:8080/auth/login \
+TOKEN=$(curl -s -X POST https://backend.nexapay.space/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"cin":"12345678","phone":"21612345678"}' | jq -r '.token')
 ```
@@ -44,7 +44,7 @@ TOKEN=$(curl -s -X POST http://localhost:8080/auth/login \
 ## 4) Call protected user endpoints (needs both headers)
 
 ```bash
-curl -s http://localhost:8080/accounts/$ADDR \
+curl -s https://backend.nexapay.space/accounts/$ADDR \
   -H "X-API-Key: $DEV_KEY" \
   -H "X-Account-Token: $TOKEN" | jq
 ```
@@ -52,7 +52,7 @@ curl -s http://localhost:8080/accounts/$ADDR \
 ## 5) Request a loan (needs both headers)
 
 ```bash
-curl -s -X POST http://localhost:8080/loans/request \
+curl -s -X POST https://backend.nexapay.space/loans/request \
   -H 'Content-Type: application/json' \
   -H "X-API-Key: $DEV_KEY" \
   -H "X-Account-Token: $TOKEN" \
@@ -65,6 +65,6 @@ curl -s -X POST http://localhost:8080/loans/request \
 - Protected: /chain/blocks, /chain/blocks/:index, /chain/transactions/:hash
 
 ```bash
-curl -s http://localhost:8080/chain/stats | jq
-curl -s 'http://localhost:8080/chain/blocks?page=1&limit=5' -H "X-API-Key: $DEV_KEY" | jq
+curl -s https://backend.nexapay.space/chain/stats | jq
+curl -s 'https://backend.nexapay.space/chain/blocks?page=1&limit=5' -H "X-API-Key: $DEV_KEY" | jq
 ```
