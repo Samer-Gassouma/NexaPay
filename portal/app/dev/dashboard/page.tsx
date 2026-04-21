@@ -94,9 +94,11 @@ export default function DeveloperDashboardPage() {
       return;
     }
 
-    // Ensure developer API key is present
-    if (!session!.developerApiKey) {
-      console.warn("No developer API key in session, redirecting to login");
+    // Ensure developer session token is present
+    if (!session!.sessionToken) {
+      console.warn(
+        "No developer session token in session, redirecting to login",
+      );
       router.replace("/dev");
       return;
     }
@@ -108,13 +110,13 @@ export default function DeveloperDashboardPage() {
     try {
       setLoading(true);
 
-      if (!session!.developerApiKey) {
-        throw new Error("No developer API key available");
+      if (!session!.sessionToken) {
+        throw new Error("No developer session available");
       }
 
       const { data } = await api.get<OverviewResponse>("/dev/portal/overview", {
         headers: {
-          "X-Developer-Token": session!.developerApiKey,
+          "X-Developer-Token": session!.sessionToken,
         },
       });
       setOverview(data);
@@ -144,8 +146,8 @@ export default function DeveloperDashboardPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      if (!session!.developerApiKey) {
-        throw new Error("No developer API key available");
+      if (!session!.sessionToken) {
+        throw new Error("No developer session available");
       }
 
       const payload = {
@@ -158,7 +160,7 @@ export default function DeveloperDashboardPage() {
         payload,
         {
           headers: {
-            "X-Developer-Token": session!.developerApiKey,
+            "X-Developer-Token": session!.sessionToken,
           },
         },
       );
