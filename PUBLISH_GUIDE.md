@@ -377,4 +377,16 @@ For publishing issues or questions:
 - **GitHub Issues**: https://github.com/nexapay/nexapay-node-sdk/issues
 - **Documentation**: https://nexapay.tn/docs
 
+### Two-Factor Authentication (2FA)
+If you encounter 2FA errors when publishing:
+1. Check if 2FA is enabled on your npm account: `npm profile get`
+2. If 2FA is enabled, you have two options:
+   - Use `--otp` flag with one-time password: `npm publish --access public --otp 123456`
+   - Create a granular access token with publishing permissions:
+     ```
+     npm token create --read-write --cidr 0.0.0.0/0
+     ```
+     Then use the token for authentication
+3. To disable 2FA (not recommended for security): `npm profile disable-2fa`
+
 *Last updated: April 2026*

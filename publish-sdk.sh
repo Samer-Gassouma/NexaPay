@@ -17,6 +17,7 @@ NC='\033[0m' # No Color
 PACKAGE_NAME="@nexapay/node-sdk"
 SDK_DIR="sdk"
 ROOT_DIR=$(pwd)
+TWO_FACTOR_ENABLED=false
 
 # Print colored message
 log() {
@@ -93,6 +94,17 @@ check_prerequisites() {
         fi
     else
         success "Logged in to npm as $(npm whoami)"
+    fi
+
+    # Check 2FA status
+    info "Checking 2FA status..."
+    if npm profile get 2>/dev/null | grep -q '"tfa": true'; then
+        warning "Two-factor authentication is enabled on your npm account."
+        warning "You will need to provide a one-time password when publishing."
+        TWO_FACTOR_ENABLED=true
+    else
+        info "2FA is not enabled on your npm account."
+        TWO_FACTOR_ENABLED=false
     fi
 
     # Check git status
@@ -362,10 +374,64 @@ publish() {
 
     info "Publishing $PACKAGE_NAME@$NEW_VERSION"
 
-    if npm publish --access public; then
-        success "Successfully published $PACKAGE_NAME@$NEW_VERSION"
-    else
-        error "Publishing failed"
+    # Check if we should ask for OTP (2FA)
+    OTP=""
+    MAX_RETRIES=3
+    ATTEMPT=1
+    PUBLISH_SUCCESS=false
+
+    while [ $ATTEMPT -le $MAX_RETRIES ] && [ "$PUBLISH_SUCCESS" = false ]; do
+        OTP=""
+        if [ "$TWO_FACTOR_ENABLED" = true ] || [ $ATTEMPT -gt 1 ]; then
+            warning "Two-factor authentication is required to publish."
+            read -p "Attempt $ATTEMPT/$MAX_RETRIES - Enter 2FA one-time password: " OTP
+            echo
+            if [ -z "$OTP" ]; then
+                warning "No OTP provided. Skipping 2FA..."
+            fi
+        fi
+
+        # Build publish command
+        PUBLISH_CMD="npm publish --access public"
+        if [ -n "$OTP" ]; then
+            PUBLISH_CMD="$PUBLISH_CMD --otp $OTP"
+            info "Using 2FA one-time password"
+        fi
+
+        info "Publishing attempt $ATTEMPT/$MAX_RETRIES..."
+        if eval "$PUBLISH_CMD"; then
+            success "Successfully published $PACKAGE_NAME@$NEW_VERSION"
+            PUBLISH_SUCCESS=true
+        else
+            error "Publishing attempt $ATTEMPT failed"
+
+            # Check if error is related to 2FA
+            if [ $ATTEMPT -lt $MAX_RETRIES ]; then
+                echo
+                warning "The error may be due to:"
+                warning "1. Incorrect or expired one-time password"
+                warning "2. 2FA requirement not met"
+                warning "3. Network or permission issues"
+                echo
+                info "Retrying..."
+                echo
+            fi
+            ATTEMPT=$((ATTEMPT + 1))
+        fi
+    done
+
+    if [ "$PUBLISH_SUCCESS" = false ]; then
+        error "Publishing failed after $MAX_RETRIES attempts"
+        echo
+        info "Troubleshooting steps:"
+        info "1. Check your 2FA one-time password (it refreshes every 30 seconds)"
+        info "2. Verify npm login: npm whoami"
+        info "3. Check package permissions: npm access ls-packages"
+        info "4. Try publishing manually:"
+        info "   cd sdk && npm publish --access public --otp YOUR_OTP"
+        info "5. If 2FA issues persist, consider creating a granular token:"
+        info "   npm token create --read-write"
+        info "   Then use: npm config set //registry.npmjs.org/:_authToken YOUR_TOKEN"
         exit 1
     fi
 

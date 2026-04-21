@@ -309,6 +309,83 @@ const client = new NexaPay({
 });
 ```
 
+## Migration Guide
+
+### Version 0.1.1 Changes
+
+Version 0.1.1 introduces a breaking change to prepare for production deployment:
+
+#### Breaking Changes
+1. **Default Base URL Changed**: The default `baseURL` has been updated from `https://nexapay.space/backend` to `https://backend.nexapay.space`
+
+#### Migration Steps
+
+1. **Update Existing Code**: If you were using the default base URL, no changes are needed. If you explicitly set the baseURL, update it:
+
+```javascript
+// Before v0.1.1
+const client = new NexaPay({
+  apiKey: 'your-api-key',
+  baseURL: 'https://nexapay.space/backend' // Old URL
+});
+
+// After v0.1.1  
+const client = new NexaPay({
+  apiKey: 'your-api-key',
+  baseURL: 'https://backend.nexapay.space' // New URL
+});
+```
+
+2. **Test Your Integration**: Verify your integration still works with the new URL:
+
+```javascript
+const NexaPay = require('@nexapay/node-sdk');
+
+const client = new NexaPay({
+  apiKey: 'your-api-key'
+});
+
+// Test connectivity
+async function testConnection() {
+  try {
+    const response = await client.request('GET', '/chain/stats');
+    console.log('✅ Connection successful');
+    console.log('Base URL:', client.getBaseURL());
+  } catch (error) {
+    console.error('❌ Connection failed:', error.message);
+  }
+}
+
+testConnection();
+```
+
+3. **Update Environment Variables**: If you use environment variables for configuration:
+
+```bash
+# Before
+NEXAPAY_BASE_URL=https://nexapay.space/backend
+
+# After
+NEXAPAY_BASE_URL=https://backend.nexapay.space
+```
+
+4. **Check All API Calls**: Ensure all your API calls work correctly with the new base URL.
+
+#### Why This Change?
+
+The change was made to support the new production subdomain architecture:
+- **Frontend Portal**: `https://nexapay.space` (Next.js application)
+- **Backend API**: `https://backend.nexapay.space` (Rust API)
+
+This separation provides better security, scalability, and maintainability.
+
+#### Need Help?
+
+If you encounter issues during migration:
+1. Check the [GitHub Issues](https://github.com/nexapay/nexapay-node-sdk/issues)
+2. Email support: dev@nexapay.tn
+3. Visit the [Developer Portal](https://nexapay.space/dev)
+
 ## TypeScript Support
 
 The SDK includes full TypeScript definitions:
