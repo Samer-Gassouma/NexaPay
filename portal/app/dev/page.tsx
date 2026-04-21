@@ -1,12 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, CheckCircle2, LockKeyhole, ShieldCheck } from "lucide-react";
+import { Building2, LockKeyhole, User, Key } from "lucide-react";
 
 import BrandLogo from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { developerPlans } from "@/lib/subscriptions";
 import { api } from "@/lib/api";
 import {
@@ -47,6 +48,7 @@ export default function DevPortalPage() {
     password: "",
     plan: "starter",
   });
+
   const [loginForm, setLoginForm] = useState({
     identifier: "",
     password: "",
@@ -65,7 +67,10 @@ export default function DevPortalPage() {
     setError(null);
 
     try {
-      const { data } = await api.post<RegisterResponse>("/dev/register", registerForm);
+      const { data } = await api.post<RegisterResponse>(
+        "/dev/register",
+        registerForm,
+      );
       writeDeveloperSession({
         sessionToken: data.session_token,
         developer: data.developer,
@@ -75,7 +80,9 @@ export default function DevPortalPage() {
       });
       router.push("/dev/dashboard");
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? "Unable to create developer workspace");
+      setError(
+        err?.response?.data?.error ?? "Unable to create developer workspace",
+      );
     } finally {
       setBusy(null);
     }
@@ -110,290 +117,366 @@ export default function DevPortalPage() {
     }
   }
 
-  const currentPlan = developerPlans.find((plan) => plan.id === registerForm.plan);
-  const inputClass =
-    "mt-2 h-11 w-full rounded-xl border border-white/15 bg-[#0d1328] px-3 text-white placeholder:text-white/40 outline-none transition focus:border-[var(--brand)]";
-
-  return (
-    <main className="mx-auto max-w-[1260px] px-4 py-8 md:py-10">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <Link href="/" className="inline-flex items-center">
-          <BrandLogo size="md" />
-        </Link>
-        <div className="flex flex-wrap items-center gap-3">
-          <Link href="/subscription" className="text-sm font-semibold text-[#ffb17f] underline underline-offset-4">
-            Pricing
-          </Link>
-          {existingCompany ? (
-            <Link href="/dev/dashboard" className="neo-btn neo-btn--dark">
-              Open {existingCompany}
-            </Link>
-          ) : null}
-        </div>
-      </div>
-
-      <section className="pro-hero animate-rise">
-        <div className="hero-noise" />
-        <div className="hero-layout">
-          <div className="hero-left">
-            <p className="hero-tag">For builders, platforms, and local commerce teams</p>
-            <h1 className="hero-title">
-              Developer
-              <br />
-              infrastructure
-              <br />
-              that feels real
-            </h1>
-            <p className="hero-subtitle">
-              Create your NexaPay business workspace, manage merchants, track revenue, issue fresh API keys, and ship hosted checkout that looks trustworthy from day one.
-            </p>
-
-            <div className="hero-actions">
-              <button
-                type="button"
-                onClick={() => setMode("register")}
-                className={mode === "register" ? "neo-btn neo-btn--primary" : "neo-btn neo-btn--dark"}
-              >
-                Create workspace
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("login")}
-                className={mode === "login" ? "neo-btn neo-btn--primary" : "neo-btn neo-btn--ghost"}
-              >
-                Sign in
-              </button>
-            </div>
-
-            <div className="mt-8 grid gap-3 md:grid-cols-3">
-              <ValuePill label="Merchant workspaces" value="Create and manage accounts" />
-              <ValuePill label="Hosted checkout" value="Customer-ready payment pages" />
-              <ValuePill label="Key lifecycle" value="Rotate and secure credentials" />
-            </div>
-          </div>
-
-          <div className="lg:col-span-2">
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_290px]">
-              <div className="rounded-[24px] border border-white/12 bg-[linear-gradient(160deg,#11162a,#0b0f1d)] p-5 shadow-[0_26px_60px_rgba(0,0,0,0.32)]">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.24em] text-white/48">
-                      {mode === "register" ? "Create Developer Account" : "Developer Login"}
-                    </p>
-                    <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-white">
-                      {mode === "register" ? "Open your gateway workspace" : "Continue to your console"}
-                    </h2>
-                  </div>
-                  <div className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/60">
-                    Secure session
-                  </div>
-                </div>
-
-                {mode === "register" ? (
-                  <form className="mt-5 grid gap-4 md:grid-cols-2" onSubmit={handleRegister}>
-                    <label className="text-sm font-medium text-white/80">
-                      Company name
-                      <input
-                        className={inputClass}
-                        value={registerForm.company_name}
-                        onChange={(e) => setRegisterForm((prev) => ({ ...prev, company_name: e.target.value }))}
-                        placeholder="Sahtek Market"
-                        required
-                      />
-                    </label>
-                    <label className="text-sm font-medium text-white/80">
-                      Contact name
-                      <input
-                        className={inputClass}
-                        value={registerForm.contact_name}
-                        onChange={(e) => setRegisterForm((prev) => ({ ...prev, contact_name: e.target.value }))}
-                        placeholder="Youssef Trabelsi"
-                        required
-                      />
-                    </label>
-                    <label className="text-sm font-medium text-white/80">
-                      Work email
-                      <input
-                        type="email"
-                        className={inputClass}
-                        value={registerForm.email}
-                        onChange={(e) => setRegisterForm((prev) => ({ ...prev, email: e.target.value }))}
-                        placeholder="ops@sahtek.tn"
-                        required
-                      />
-                    </label>
-                    <label className="text-sm font-medium text-white/80">
-                      Phone
-                      <input
-                        className={inputClass}
-                        value={registerForm.phone}
-                        onChange={(e) => setRegisterForm((prev) => ({ ...prev, phone: e.target.value }))}
-                        placeholder="+216 98 765 432"
-                        required
-                      />
-                    </label>
-                    <label className="text-sm font-medium text-white/80">
-                      Password
-                      <input
-                        type="password"
-                        className={inputClass}
-                        value={registerForm.password}
-                        onChange={(e) => setRegisterForm((prev) => ({ ...prev, password: e.target.value }))}
-                        placeholder="Minimum 8 characters"
-                        required
-                      />
-                    </label>
-                    <label className="text-sm font-medium text-white/80">
-                      Plan
-                      <select
-                        className={inputClass}
-                        value={registerForm.plan}
-                        onChange={(e) => setRegisterForm((prev) => ({ ...prev, plan: e.target.value }))}
-                      >
-                        {developerPlans.map((plan) => (
-                          <option key={plan.id} value={plan.id}>
-                            {plan.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <div className="md:col-span-2 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-white/65">
-                      Your first session stores the developer API key in this browser so you can create merchants and issue hosted checkout links immediately.
-                    </div>
-
-                    <Button type="submit" className="md:col-span-2" disabled={busy !== null}>
-                      {busy === "register" ? "Creating workspace..." : "Create developer workspace"}
-                    </Button>
-                  </form>
-                ) : (
-                  <form className="mt-5 grid gap-4" onSubmit={handleLogin}>
-                    <label className="text-sm font-medium text-white/80">
-                      Email or phone
-                      <input
-                        className={inputClass}
-                        value={loginForm.identifier}
-                        onChange={(e) => setLoginForm((prev) => ({ ...prev, identifier: e.target.value }))}
-                        placeholder="ops@sahtek.tn or +216..."
-                        required
-                      />
-                    </label>
-                    <label className="text-sm font-medium text-white/80">
-                      Password
-                      <input
-                        type="password"
-                        className={inputClass}
-                        value={loginForm.password}
-                        onChange={(e) => setLoginForm((prev) => ({ ...prev, password: e.target.value }))}
-                        placeholder="Your developer password"
-                        required
-                      />
-                    </label>
-
-                    <Button type="submit" disabled={busy !== null}>
-                      {busy === "login" ? "Signing in..." : "Open developer console"}
-                    </Button>
-                  </form>
-                )}
-
-                {error ? <p className="mt-4 text-sm text-[#ff9f7b]">{error}</p> : null}
-              </div>
-
-              <div className="rounded-[24px] border border-white/12 bg-[linear-gradient(160deg,#121827,#0b0f1b)] p-5">
-                <p className="text-xs uppercase tracking-[0.22em] text-white/48">Current plan</p>
-                <h3 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-white">
-                  {currentPlan?.name ?? "Starter"}
-                </h3>
-                <p className="mt-3 text-sm leading-6 text-white/68">
-                  {currentPlan?.description}
-                </p>
-
-                <div className="mt-5 space-y-3">
-                  {(currentPlan?.features ?? []).slice(0, 4).map((feature) => (
-                    <div key={feature} className="flex items-start gap-3 text-sm text-white/72">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 text-[var(--brand)]" />
-                      <span>{feature}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-white/42">Best for</p>
-                  <p className="mt-2 text-sm leading-6 text-white/72">
-                    Teams that want a serious hosted checkout, merchant operations, and API workflows without building internal admin tooling from scratch.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="platform-story mt-8">
-        <div className="story-head">
-          <p className="story-kicker">Why this portal exists</p>
-          <h2 className="story-title">A merchant console that matches the rest of NexaPay</h2>
-          <p className="story-copy">
-            The developer side should feel like a real financial operations tool, not a demo surface. Use it to onboard businesses, manage keys, view revenue, and create hosted payment flows with the same product language as the main site.
-          </p>
-        </div>
-
-        <div className="story-grid">
-          <article className="story-card story-card-user">
-            <p className="story-card-tag">Business onboarding</p>
-            <h3>Create the workspace with the details a real merchant team expects.</h3>
-            <p>
-              Company name, operator, email, phone, password, and plan selection are handled in one place so the console feels closer to Stripe onboarding than a raw key generator.
-            </p>
-          </article>
-
-          <article className="story-card">
-            <p className="story-card-tag">Key management</p>
-            <h3>Rotate developer credentials without leaving the console.</h3>
-            <p>
-              The workspace stores the issued developer key locally for this browser so you can continue into merchant creation immediately after onboarding.
-            </p>
-          </article>
-
-          <article className="story-card">
-            <p className="story-card-tag">Merchant operations</p>
-            <h3>Issue merchants, inspect revenue, and create hosted checkout links.</h3>
-            <p>
-              Once signed in, the dashboard gives you the operational view a real payment gateway should expose.
-            </p>
-            <Link href="/dev/dashboard" className="story-link">
-              Open developer dashboard
-            </Link>
-          </article>
-        </div>
-      </section>
-
-      <section className="mt-8 rounded-3xl border border-white/10 bg-[linear-gradient(160deg,#10172b,#090d18)] p-6 md:p-8">
-        <div className="grid gap-4 md:grid-cols-2">
-          {developerPlans.map((plan) => (
-            <article key={plan.id} className="rounded-2xl border border-white/12 bg-white/[0.03] p-5">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs uppercase tracking-[0.22em] text-white/55">{plan.name}</p>
-                <p className="text-sm text-[var(--brand)]">TND {plan.monthlyPrice}/mo</p>
-              </div>
-              <p className="mt-3 text-sm text-white/72">{plan.description}</p>
-              <div className="mt-4 flex items-center gap-2 text-sm text-white/62">
-                <ShieldCheck className="h-4 w-4 text-[var(--brand)]" />
-                {plan.priceLabel}
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-    </main>
+  const currentPlan = developerPlans.find(
+    (plan) => plan.id === registerForm.plan,
   );
-}
 
-function ValuePill({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-      <p className="text-xs uppercase tracking-[0.2em] text-white/42">{label}</p>
-      <p className="mt-2 text-sm font-medium text-white/82">{value}</p>
-    </div>
+    <main className="min-h-screen bg-gradient-to-b from-[#070911] to-[#0b0f1e] p-4 md:p-6">
+      <div className="mx-auto max-w-4xl">
+        {/* Header */}
+        <header className="mb-8 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2">
+            <BrandLogo size="md" />
+            <span className="text-lg font-semibold text-white">NexaPay</span>
+          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/subscription"
+              className="text-sm font-medium text-white/70 hover:text-white"
+            >
+              Pricing
+            </Link>
+            {existingCompany && (
+              <Link
+                href="/dev/dashboard"
+                className="rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-sm font-medium text-white hover:bg-white/10"
+              >
+                Open {existingCompany}
+              </Link>
+            )}
+          </div>
+        </header>
+
+        <div className="grid gap-8 lg:grid-cols-3">
+          {/* Left side - Intro */}
+          <div className="lg:col-span-2 space-y-6">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold text-white">
+                Developer Portal
+              </h1>
+              <p className="mt-2 text-lg text-white/70">
+                Build, test, and manage your payment integrations
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="rounded-lg bg-[#2de6c4]/20 p-2">
+                    <Building2 className="h-5 w-5 text-[#2de6c4]" />
+                  </div>
+                  <h3 className="font-semibold text-white">
+                    Merchant Workspaces
+                  </h3>
+                </div>
+                <p className="text-sm text-white/60">
+                  Create and manage merchant accounts with separate API keys
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="rounded-lg bg-[#57c8ff]/20 p-2">
+                    <LockKeyhole className="h-5 w-5 text-[#57c8ff]" />
+                  </div>
+                  <h3 className="font-semibold text-white">Hosted Checkout</h3>
+                </div>
+                <p className="text-sm text-white/60">
+                  Customer-ready payment pages with built-in security
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="rounded-lg bg-[#a1ffe2]/20 p-2">
+                    <Key className="h-5 w-5 text-[#a1ffe2]" />
+                  </div>
+                  <h3 className="font-semibold text-white">Key Management</h3>
+                </div>
+                <p className="text-sm text-white/60">
+                  Rotate and secure API credentials with lifecycle controls
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="rounded-lg bg-[#ff8f5a]/20 p-2">
+                    <User className="h-5 w-5 text-[#ff8f5a]" />
+                  </div>
+                  <h3 className="font-semibold text-white">Revenue Tracking</h3>
+                </div>
+                <p className="text-sm text-white/60">
+                  Monitor payment success rates and merchant performance
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-gradient-to-r from-[#0d1328]/50 to-[#121a2f]/50 p-6">
+              <h3 className="text-lg font-semibold text-white mb-2">
+                Why use the developer portal?
+              </h3>
+              <p className="text-white/70">
+                Get access to merchant onboarding, hosted checkout generation,
+                API key management, and revenue analytics—all in one
+                professional console designed for serious payment integrations.
+              </p>
+            </div>
+          </div>
+
+          {/* Right side - Auth Form */}
+          <div className="space-y-6">
+            <Card className="p-6 border-white/10 bg-[#0d1328]">
+              <div className="flex border-b border-white/10 mb-6">
+                <button
+                  type="button"
+                  className={`flex-1 pb-3 text-center font-medium ${mode === "register" ? "text-white border-b-2 border-[#2de6c4]" : "text-white/50 hover:text-white/80"}`}
+                  onClick={() => setMode("register")}
+                >
+                  Register
+                </button>
+                <button
+                  type="button"
+                  className={`flex-1 pb-3 text-center font-medium ${mode === "login" ? "text-white border-b-2 border-[#2de6c4]" : "text-white/50 hover:text-white/80"}`}
+                  onClick={() => setMode("login")}
+                >
+                  Login
+                </button>
+              </div>
+
+              {mode === "register" ? (
+                <form onSubmit={handleRegister} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-white/80 mb-2">
+                      Company Name
+                    </label>
+                    <input
+                      type="text"
+                      value={registerForm.company_name}
+                      onChange={(e) =>
+                        setRegisterForm((prev) => ({
+                          ...prev,
+                          company_name: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-lg border border-white/15 bg-white/5 px-4 py-3 text-white placeholder:text-white/40 focus:border-[#2de6c4] focus:outline-none"
+                      placeholder="Your company"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-white/80 mb-2">
+                      Contact Name
+                    </label>
+                    <input
+                      type="text"
+                      value={registerForm.contact_name}
+                      onChange={(e) =>
+                        setRegisterForm((prev) => ({
+                          ...prev,
+                          contact_name: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-lg border border-white/15 bg-white/5 px-4 py-3 text-white placeholder:text-white/40 focus:border-[#2de6c4] focus:outline-none"
+                      placeholder="Your name"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-white/80 mb-2">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={registerForm.email}
+                      onChange={(e) =>
+                        setRegisterForm((prev) => ({
+                          ...prev,
+                          email: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-lg border border-white/15 bg-white/5 px-4 py-3 text-white placeholder:text-white/40 focus:border-[#2de6c4] focus:outline-none"
+                      placeholder="you@company.com"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-white/80 mb-2">
+                      Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={registerForm.phone}
+                      onChange={(e) =>
+                        setRegisterForm((prev) => ({
+                          ...prev,
+                          phone: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-lg border border-white/15 bg-white/5 px-4 py-3 text-white placeholder:text-white/40 focus:border-[#2de6c4] focus:outline-none"
+                      placeholder="+216 12 345 678"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-white/80 mb-2">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      value={registerForm.password}
+                      onChange={(e) =>
+                        setRegisterForm((prev) => ({
+                          ...prev,
+                          password: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-lg border border-white/15 bg-white/5 px-4 py-3 text-white placeholder:text-white/40 focus:border-[#2de6c4] focus:outline-none"
+                      placeholder="Minimum 8 characters"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-white/80 mb-2">
+                      Plan
+                    </label>
+                    <select
+                      value={registerForm.plan}
+                      onChange={(e) =>
+                        setRegisterForm((prev) => ({
+                          ...prev,
+                          plan: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-lg border border-white/15 bg-white/5 px-4 py-3 text-white placeholder:text-white/40 focus:border-[#2de6c4] focus:outline-none"
+                    >
+                      {developerPlans.map((plan) => (
+                        <option key={plan.id} value={plan.id}>
+                          {plan.name} - TND {plan.monthlyPrice}/month
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {error && <p className="text-sm text-[#ff9f7b]">{error}</p>}
+
+                  <Button
+                    type="submit"
+                    className="w-full bg-gradient-to-r from-[#2de6c4] to-[#57c8ff] text-white hover:opacity-90"
+                    disabled={busy !== null}
+                  >
+                    {busy === "register" ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        Creating workspace...
+                      </span>
+                    ) : (
+                      "Create Developer Workspace"
+                    )}
+                  </Button>
+                </form>
+              ) : (
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-white/80 mb-2">
+                      Email or Phone
+                    </label>
+                    <input
+                      type="text"
+                      value={loginForm.identifier}
+                      onChange={(e) =>
+                        setLoginForm((prev) => ({
+                          ...prev,
+                          identifier: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-lg border border-white/15 bg-white/5 px-4 py-3 text-white placeholder:text-white/40 focus:border-[#2de6c4] focus:outline-none"
+                      placeholder="you@company.com or +216..."
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-white/80 mb-2">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      value={loginForm.password}
+                      onChange={(e) =>
+                        setLoginForm((prev) => ({
+                          ...prev,
+                          password: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-lg border border-white/15 bg-white/5 px-4 py-3 text-white placeholder:text-white/40 focus:border-[#2de6c4] focus:outline-none"
+                      placeholder="Your password"
+                      required
+                    />
+                  </div>
+
+                  {error && <p className="text-sm text-[#ff9f7b]">{error}</p>}
+
+                  <Button
+                    type="submit"
+                    className="w-full bg-gradient-to-r from-[#2de6c4] to-[#57c8ff] text-white hover:opacity-90"
+                    disabled={busy !== null}
+                  >
+                    {busy === "login" ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        Signing in...
+                      </span>
+                    ) : (
+                      "Open Developer Console"
+                    )}
+                  </Button>
+                </form>
+              )}
+            </Card>
+
+            <Card className="p-6 border-white/10 bg-[#0d1328]">
+              <h3 className="text-lg font-semibold text-white mb-3">
+                {currentPlan?.name} Plan
+              </h3>
+              <p className="text-white/70 mb-4">{currentPlan?.description}</p>
+              <div className="space-y-2">
+                {currentPlan?.features.slice(0, 3).map((feature, index) => (
+                  <div key={index} className="flex items-start gap-2">
+                    <div className="h-5 w-5 rounded-full bg-[#2de6c4]/20 flex items-center justify-center flex-shrink-0">
+                      <div className="h-2 w-2 rounded-full bg-[#2de6c4]" />
+                    </div>
+                    <span className="text-sm text-white/80">{feature}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <p className="text-sm text-white/60">
+                  Best for teams building production payment integrations with
+                  hosted checkout.
+                </p>
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        <footer className="mt-12 pt-6 border-t border-white/10 text-center">
+          <p className="text-sm text-white/50">
+            Need help? Contact{" "}
+            <a
+              href="mailto:contact@backendglitch.com"
+              className="text-[#57c8ff] hover:underline"
+            >
+              contact@backendglitch.com
+            </a>
+          </p>
+        </footer>
+      </div>
+    </main>
   );
 }

@@ -93,21 +93,48 @@ export default function DeveloperDashboardPage() {
       router.replace("/dev");
       return;
     }
+
+    // Ensure developer API key is present
+    if (!session!.developerApiKey) {
+      console.warn("No developer API key in session, redirecting to login");
+      router.replace("/dev");
+      return;
+    }
+
     loadOverview();
-  }, []);
+  }, [session, router]);
 
   async function loadOverview() {
     try {
       setLoading(true);
+
+      if (!session!.developerApiKey) {
+        throw new Error("No developer API key available");
+      }
+
       const { data } = await api.get<OverviewResponse>("/dev/portal/overview", {
         headers: {
-          "X-Developer-Token": session?.developerApiKey || "",
+          "X-Developer-Token": session!.developerApiKey,
         },
       });
       setOverview(data);
       setError(null);
     } catch (err: any) {
-      setError(err?.response?.data?.error || "Failed to load workspace data");
+      const errorMessage =
+        err?.response?.data?.error || "Failed to load workspace data";
+      setError(errorMessage);
+
+      // If authentication error (401), redirect to login
+      if (
+        err?.response?.status === 401 ||
+        errorMessage.toLowerCase().includes("unauthorized") ||
+        errorMessage.toLowerCase().includes("invalid")
+      ) {
+        setTimeout(() => {
+          clearDeveloperSession();
+          router.replace("/dev");
+        }, 2000);
+      }
     } finally {
       setLoading(false);
     }
@@ -117,6 +144,10 @@ export default function DeveloperDashboardPage() {
     e.preventDefault();
     setLoading(true);
     try {
+      if (!session!.developerApiKey) {
+        throw new Error("No developer API key available");
+      }
+
       const payload = {
         name: merchantForm.name,
         support_email: merchantForm.support_email,
@@ -127,7 +158,7 @@ export default function DeveloperDashboardPage() {
         payload,
         {
           headers: {
-            "X-Developer-Token": session?.developerApiKey || "",
+            "X-Developer-Token": session!.developerApiKey,
           },
         },
       );
@@ -135,9 +166,9 @@ export default function DeveloperDashboardPage() {
       // Update session with new merchant key
       if (session && data.api_key) {
         const updatedSession = {
-          ...session,
+          ...session!,
           merchantKeys: {
-            ...session.merchantKeys,
+            ...session!.merchantKeys,
             [data.merchant_id]: data.api_key,
           },
         };
@@ -148,7 +179,21 @@ export default function DeveloperDashboardPage() {
       setMerchantForm({ name: "", support_email: "" });
       await loadOverview();
     } catch (err: any) {
-      setError(err?.response?.data?.error || "Failed to register merchant");
+      const errorMessage =
+        err?.response?.data?.error || "Failed to register merchant";
+      setError(errorMessage);
+
+      // If authentication error, redirect to login
+      if (
+        err?.response?.status === 401 ||
+        errorMessage.toLowerCase().includes("unauthorized") ||
+        errorMessage.toLowerCase().includes("invalid")
+      ) {
+        setTimeout(() => {
+          clearDeveloperSession();
+          router.replace("/dev");
+        }, 2000);
+      }
     } finally {
       setLoading(false);
     }
@@ -161,7 +206,7 @@ export default function DeveloperDashboardPage() {
       return;
     }
 
-    const merchantKey = session?.merchantKeys?.[selectedMerchantId];
+    const merchantKey = session!.merchantKeys?.[selectedMerchantId];
     if (!merchantKey) {
       setError("No API key available for selected merchant");
       return;
@@ -191,7 +236,21 @@ export default function DeveloperDashboardPage() {
         description: "",
       });
     } catch (err: any) {
-      setError(err?.response?.data?.error || "Failed to create payment intent");
+      const errorMessage =
+        err?.response?.data?.error || "Failed to create payment intent";
+      setError(errorMessage);
+
+      // If authentication error, redirect to login
+      if (
+        err?.response?.status === 401 ||
+        errorMessage.toLowerCase().includes("unauthorized") ||
+        errorMessage.toLowerCase().includes("invalid")
+      ) {
+        setTimeout(() => {
+          clearDeveloperSession();
+          router.replace("/dev");
+        }, 2000);
+      }
     } finally {
       setLoading(false);
     }

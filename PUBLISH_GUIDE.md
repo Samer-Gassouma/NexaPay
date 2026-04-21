@@ -373,9 +373,9 @@ npm publish --dry-run
 ## Contact
 
 For publishing issues or questions:
-- **Technical Support**: dev@nexapay.tn
+- **Technical Support**: contact@backendglitch.com
 - **GitHub Issues**: https://github.com/nexapay/nexapay-node-sdk/issues
-- **Documentation**: https://nexapay.tn/docs
+- **Documentation**: https://nexapay.space/docs
 
 ### Two-Factor Authentication (2FA)
 If you encounter 2FA errors when publishing:

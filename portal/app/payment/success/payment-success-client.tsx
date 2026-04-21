@@ -627,7 +627,7 @@ export function PaymentSuccessClient({
               </Link>
 
               <a
-                href={`mailto:support@nexapay.tn?subject=Payment%20Query:%20${intentId}`}
+                href={`mailto:contact@backendglitch.com?subject=Payment%20Query:%20${intentId}`}
                 className="block"
               >
                 <Button variant="ghost" className="h-12 w-full justify-start">

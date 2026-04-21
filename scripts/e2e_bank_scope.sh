@@ -32,8 +32,8 @@ register_user_with_bank_key() {
 }
 
 echo "Registering two banks"
-BANK1_KEY=$(register_bank "Bank One" "11" "bank1@nexapay.tn")
-BANK2_KEY=$(register_bank "Bank Two" "12" "bank2@nexapay.tn")
+BANK1_KEY=$(register_bank "Bank One" "11" "bank1@nexapay.space")
+BANK2_KEY=$(register_bank "Bank Two" "12" "bank2@nexapay.space")
 
 echo "Register users under each bank key"
 register_user_with_bank_key "$BANK1_KEY" "Bank One User" "11112222" "21611112222"

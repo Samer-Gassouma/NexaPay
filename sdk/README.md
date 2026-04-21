@@ -383,7 +383,7 @@ This separation provides better security, scalability, and maintainability.
 
 If you encounter issues during migration:
 1. Check the [GitHub Issues](https://github.com/nexapay/nexapay-node-sdk/issues)
-2. Email support: dev@nexapay.tn
+2. Email support: contact@backendglitch.com
 3. Visit the [Developer Portal](https://nexapay.space/dev)
 
 ## TypeScript Support
@@ -506,16 +506,16 @@ src/
 ## API Documentation
 
 For complete API documentation, refer to:
-- [OpenAPI Specification](https://nexapay.tn/docs/api/openapi.yaml)
+- [OpenAPI Specification](https://nexapay.space/docs/api/openapi.yaml)
 - [NexaPay Developer Portal](https://nexapay.space/dev)
-- [Interactive API Docs](https://nexapay.tn/docs)
+- [Interactive API Docs](https://nexapay.space/docs)
 
 ## Support
 
-- **Documentation**: [https://nexapay.tn/docs](https://nexapay.tn/docs)
+- **Documentation**: [https://nexapay.space/docs](https://nexapay.space/docs)
 - **Issues**: [GitHub Issues](https://github.com/nexapay/nexapay-node-sdk/issues)
-- **Email**: dev@nexapay.tn
-- **Website**: [https://nexapay.tn](https://nexapay.tn)
+- **Email**: contact@backendglitch.com
+- **Website**: [https://nexapay.space](https://nexapay.space)
 
 ## License
 

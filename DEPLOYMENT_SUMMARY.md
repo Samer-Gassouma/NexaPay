@@ -223,8 +223,8 @@ If issues arise after deployment:
 
 ## Contact & Support
 
-- **Technical Issues**: dev@nexapay.tn
-- **Documentation**: https://nexapay.tn/docs
+- **Technical Issues**: contact@backendglitch.com
+- **Documentation**: https://nexapay.space/docs
 - **GitHub Repository**: https://github.com/nexapay/nexapay-node-sdk
 - **npm Package**: https://www.npmjs.com/package/@nexapay/node-sdk
 

@@ -124,8 +124,8 @@ npm view @nexapay/node-sdk
 ---
 
 ## Support
-- **Email**: dev@nexapay.tn
+- **Email**: contact@backendglitch.com
 - **GitHub**: https://github.com/Samer-Gassouma/NexaPay/issues
-- **Documentation**: https://nexapay.tn/docs
+- **Documentation**: https://nexapay.space/docs
 
 *Last updated: April 21, 2026*

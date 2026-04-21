@@ -546,7 +546,7 @@ pub async fn register_developer(
         api_key_prefix: prefix,
         plan,
         call_limit,
-        docs_url: "https://docs.nexapay.tn".to_string(),
+        docs_url: "https://docs.nexapay.space".to_string(),
         session_token,
         developer,
     }))

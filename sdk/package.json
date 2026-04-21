@@ -17,7 +17,7 @@
     "sdk",
     "nexapay"
   ],
-  "author": "NexaPay <dev@nexapay.tn>",
+  "author": "NexaPay <contact@backendglitch.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -26,7 +26,7 @@
   "bugs": {
     "url": "https://github.com/nexapay/nexapay-node-sdk/issues"
   },
-  "homepage": "https://nexapay.tn/docs/sdk",
+  "homepage": "https://nexapay.space/docs/sdk",
   "engines": {
     "node": ">=14.0.0"
   },

@@ -33,11 +33,11 @@ info:
 
   contact:
     name: NexaPay Support
-    email: dev@nexapay.tn
-    url: https://nexapay.tn
+    email: contact@backendglitch.com
+    url: https://nexapay.space
   license:
     name: Proprietary
-    url: https://nexapay.tn/terms
+    url: https://nexapay.space/terms
 
 servers:
   - url: https://nexapay.space/backend

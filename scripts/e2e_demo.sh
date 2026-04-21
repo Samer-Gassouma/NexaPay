@@ -12,7 +12,7 @@ echo "[1/9] Register developer key"
 STAMP=$(date +%s)
 DEV_RES=$(curl -sS -X POST "$API_URL/dev/register" \
   -H "Content-Type: application/json" \
-  -d "{\"company_name\":\"Demo Integrator\",\"contact_name\":\"API Owner\",\"email\":\"demo.dev.$STAMP@nexapay.tn\",\"plan\":\"free\"}")
+  -d "{\"company_name\":\"Demo Integrator\",\"contact_name\":\"API Owner\",\"email\":\"demo.dev.$STAMP@nexapay.space\",\"plan\":\"free\"}")
 DEV_KEY=$(echo "$DEV_RES" | jq -r '.api_key')
 
 if [[ -z "$DEV_KEY" || "$DEV_KEY" == "null" ]]; then
