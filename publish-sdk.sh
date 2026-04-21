@@ -98,13 +98,17 @@ check_prerequisites() {
 
     # Check 2FA status
     info "Checking 2FA status..."
-    if npm profile get 2>/dev/null | grep -q '"tfa": true'; then
+    TWO_FACTOR_ENABLED=false
+    if npm profile get 2>/dev/null | grep -q -i "two-factor auth"; then
+        warning "Two-factor authentication is enabled on your npm account."
+        warning "You will need to provide a one-time password when publishing."
+        TWO_FACTOR_ENABLED=true
+    elif npm profile get --json 2>/dev/null | grep -q '"tfa"'; then
         warning "Two-factor authentication is enabled on your npm account."
         warning "You will need to provide a one-time password when publishing."
         TWO_FACTOR_ENABLED=true
     else
         info "2FA is not enabled on your npm account."
-        TWO_FACTOR_ENABLED=false
     fi
 
     # Check git status
