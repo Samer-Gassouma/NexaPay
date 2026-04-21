@@ -19,7 +19,11 @@ import BrandLogo from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { api } from "@/lib/api";
-import { clearDeveloperSession, getDeveloperSession } from "@/lib/session";
+import {
+  clearDeveloperSession,
+  readDeveloperSession,
+  writeDeveloperSession,
+} from "@/lib/developer-portal";
 
 // Types
 type DeveloperProfile = {
@@ -65,7 +69,7 @@ function formatDate(dateString: string): string {
 
 export default function DeveloperDashboardPage() {
   const router = useRouter();
-  const [session, setSession] = useState(getDeveloperSession());
+  const [session, setSession] = useState(readDeveloperSession());
   const [overview, setOverview] = useState<OverviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -137,10 +141,7 @@ export default function DeveloperDashboardPage() {
             [data.merchant_id]: data.api_key,
           },
         };
-        localStorage.setItem(
-          "nexapay-dev-session",
-          JSON.stringify(updatedSession),
-        );
+        writeDeveloperSession(updatedSession);
         setSession(updatedSession);
       }
 
