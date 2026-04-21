@@ -144,11 +144,25 @@ echo ""
 
 # Test backend API
 test_url "https://$BACKEND_DOMAIN" "Backend API root"
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+test_url "https://$BACKEND_DOMAIN/chain/height" "Chain height endpoint"
+
+# Test CORS headers
+echo -n "Testing CORS configuration... "
+if curl -s -I "https://$BACKEND_DOMAIN/chain/height" | grep -q "Access-Control-Allow-Origin"; then
+=======
+>>>>>>> 16a2ca6
 test_url "https://$BACKEND_DOMAIN/chain/stats" "Chain height endpoint"
 
 # Test CORS headers
 echo -n "Testing CORS configuration... "
 if curl -s -I "https://$BACKEND_DOMAIN/chain/stats" | grep -q "Access-Control-Allow-Origin"; then
+<<<<<<< HEAD
+=======
+>>>>>>> 3f78f34 (from the server)
+>>>>>>> 16a2ca6
     echo -e "${GREEN}✓ CORS headers present${NC}"
 else
     echo -e "${RED}✗ CORS headers missing${NC}"
@@ -160,7 +174,15 @@ echo ""
 
 # Test API endpoints
 echo -n "Testing chain API... "
+<<<<<<< HEAD
 CHAIN_RESPONSE=$(curl -s "https://$BACKEND_DOMAIN/chain/stats" || echo "ERROR")
+=======
+<<<<<<< HEAD
+CHAIN_RESPONSE=$(curl -s "https://$BACKEND_DOMAIN/chain/height" || echo "ERROR")
+=======
+CHAIN_RESPONSE=$(curl -s "https://$BACKEND_DOMAIN/chain/stats" || echo "ERROR")
+>>>>>>> 3f78f34 (from the server)
+>>>>>>> 16a2ca6
 if [[ "$CHAIN_RESPONSE" != "ERROR" ]] && echo "$CHAIN_RESPONSE" | grep -q "chain_height"; then
     echo -e "${GREEN}✓ Chain API working${NC}"
 else

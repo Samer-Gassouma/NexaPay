@@ -1,0 +1,54 @@
+{
+  "name": "@nexapay/node-sdk",
+  "version": "0.1.1",
+  "description": "Official Node.js SDK for NexaPay Tunisian Payment Gateway",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "payment",
+    "gateway",
+    "tunisia",
+    "fintech",
+    "sdk",
+    "nexapay"
+  ],
+  "author": "NexaPay <dev@nexapay.tn>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nexapay/nexapay-node-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nexapay/nexapay-node-sdk/issues"
+  },
+  "homepage": "https://nexapay.tn/docs/sdk",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.0.0",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "typescript": "^5.3.0"
+  }
+}
