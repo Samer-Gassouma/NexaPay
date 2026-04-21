@@ -59,7 +59,7 @@ export class NexaPayClient {
 
     // Set default configuration
     this.config = {
-      baseURL: config.baseURL || "https://nexapay.space/backend",
+      baseURL: config.baseURL || "https://backend.nexapay.space",
       timeout: config.timeout || 30000,
       ...config,
     };
@@ -67,7 +67,7 @@ export class NexaPayClient {
     // Build headers based on whether API key is provided
     const baseHeaders: Record<string, string> = {
       "Content-Type": "application/json",
-      "User-Agent": `NexaPay-Node-SDK/0.1.0`,
+      "User-Agent": `NexaPay-Node-SDK/0.1.1`,
       ...this.config.headers,
     };
 
@@ -113,7 +113,7 @@ export class NexaPayClient {
    * Get the base URL
    */
   public getBaseURL(): string {
-    return this.config.baseURL || "https://nexapay.space/backend";
+    return this.config.baseURL || "https://backend.nexapay.space";
   }
 
   /**

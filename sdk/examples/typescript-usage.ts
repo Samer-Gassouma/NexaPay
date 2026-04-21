@@ -19,17 +19,18 @@ import NexaPay, {
   NexaPayAuthenticationError,
   isNexaPayApiError,
   toNexaPayError,
-} from '@nexapay/node-sdk';
+} from "@nexapay/node-sdk";
 
 /**
  * Example configuration with proper TypeScript typing
  */
 const config: NexaPayConfig = {
-  apiKey: process.env.NEXAPAY_API_KEY || 'nxp_merchant_abc123def456ghi789_12345678',
-  baseURL: process.env.NEXAPAY_BASE_URL || 'https://nexapay.space/backend',
+  apiKey:
+    process.env.NEXAPAY_API_KEY || "nxp_merchant_abc123def456ghi789_12345678",
+  baseURL: process.env.NEXAPAY_BASE_URL || "https://backend.nexapay.space",
   timeout: 30000,
   headers: {
-    'X-Custom-Header': 'TypeScript-Example',
+    "X-Custom-Header": "TypeScript-Example",
   },
 };
 
@@ -58,13 +59,13 @@ export async function createPaymentIntent(
   currency: string,
   order: OrderData,
   customerEmail?: string,
-  customerName?: string
+  customerName?: string,
 ): Promise<PaymentIntent | null> {
-  console.log('=== Creating Payment Intent (TypeScript) ===');
+  console.log("=== Creating Payment Intent (TypeScript) ===");
 
   const requestData: CreatePaymentIntentRequest = {
     amount,
-    currency: currency || 'TND',
+    currency: currency || "TND",
     description: `Order ${order.orderId}: ${order.productName}`,
     customer_email: customerEmail,
     customer_name: customerName,
@@ -81,7 +82,7 @@ export async function createPaymentIntent(
     const response = await client.paymentIntents.create(requestData);
 
     if (response.success && response.data) {
-      console.log('✅ Payment intent created successfully');
+      console.log("✅ Payment intent created successfully");
 
       // TypeScript knows the shape of response.data
       const intent: PaymentIntent = response.data;
@@ -102,7 +103,7 @@ export async function createPaymentIntent(
 
       return intent;
     } else {
-      console.error('❌ Failed to create payment intent:', response.error);
+      console.error("❌ Failed to create payment intent:", response.error);
       return null;
     }
   } catch (error) {
@@ -117,7 +118,7 @@ export async function createPaymentIntent(
  * Shows TypeScript type guards and conditional logic
  */
 export async function processPaymentIntent(intentId: string): Promise<void> {
-  console.log('\n=== Processing Payment Intent (TypeScript) ===');
+  console.log("\n=== Processing Payment Intent (TypeScript) ===");
 
   try {
     const response = await client.paymentIntents.get(intentId);
@@ -127,26 +128,30 @@ export async function processPaymentIntent(intentId: string): Promise<void> {
 
       // Type-safe status checking
       switch (intent.status) {
-        case 'requires_confirmation':
-          console.log('📋 Payment requires confirmation');
+        case "requires_confirmation":
+          console.log("📋 Payment requires confirmation");
           console.log(`Redirect customer to: ${intent.checkout_url}`);
           break;
 
-        case 'succeeded':
-          console.log('✅ Payment succeeded!');
+        case "succeeded":
+          console.log("✅ Payment succeeded!");
 
           // Type-safe access to confirmation details
           if (intent.confirmed_at) {
-            console.log(`Confirmed at: ${new Date(intent.confirmed_at).toLocaleString()}`);
+            console.log(
+              `Confirmed at: ${new Date(intent.confirmed_at).toLocaleString()}`,
+            );
           }
 
           if (intent.card_last4 && intent.card_brand) {
-            console.log(`Paid with: ${intent.card_brand} •••• ${intent.card_last4}`);
+            console.log(
+              `Paid with: ${intent.card_brand} •••• ${intent.card_last4}`,
+            );
           }
           break;
 
-        case 'failed':
-          console.log('❌ Payment failed');
+        case "failed":
+          console.log("❌ Payment failed");
 
           // Type-safe access to failure reason
           if (intent.failure_reason) {
@@ -154,9 +159,9 @@ export async function processPaymentIntent(intentId: string): Promise<void> {
           }
           break;
 
-        case 'refunded':
-        case 'partially_refunded':
-          console.log('↩️ Payment was refunded');
+        case "refunded":
+        case "partially_refunded":
+          console.log("↩️ Payment was refunded");
           console.log(`Status: ${intent.status}`);
           break;
 
@@ -185,14 +190,14 @@ export async function confirmPayment(
     cvv: string;
     pin: string;
     holderName?: string;
-  }
+  },
 ): Promise<boolean> {
-  console.log('\n=== Confirming Payment (TypeScript) ===');
+  console.log("\n=== Confirming Payment (TypeScript) ===");
 
   // Type-safe request building
   const requestData: ConfirmPaymentIntentRequest = {
-    card_number: cardData.number.replace(/\s/g, ''),
-    expiry_month: cardData.expiryMonth.padStart(2, '0'),
+    card_number: cardData.number.replace(/\s/g, ""),
+    expiry_month: cardData.expiryMonth.padStart(2, "0"),
     expiry_year: cardData.expiryYear,
     cvv: cardData.cvv,
     pin: cardData.pin,
@@ -206,7 +211,7 @@ export async function confirmPayment(
     if (response.success && response.data) {
       console.log(`✅ Payment ${response.data.status}`);
 
-      if (response.data.status === 'succeeded') {
+      if (response.data.status === "succeeded") {
         console.log(`Redirect to: ${response.data.redirect_url}`);
         return true;
       } else if (response.data.failure_reason) {
@@ -229,9 +234,9 @@ export async function confirmPayment(
 export async function createRefund(
   intentId: string,
   amount?: number,
-  reason?: string
+  reason?: string,
 ): Promise<Refund | null> {
-  console.log('\n=== Creating Refund (TypeScript) ===');
+  console.log("\n=== Creating Refund (TypeScript) ===");
 
   const requestData: CreateRefundRequest = {
     intent_id: intentId,
@@ -245,7 +250,7 @@ export async function createRefund(
     if (response.success && response.data) {
       const refund: Refund = response.data;
 
-      console.log('✅ Refund created successfully');
+      console.log("✅ Refund created successfully");
       console.log(`Refund ID: ${refund.refund_id}`);
       console.log(`Amount: ${refund.amount} millimes`);
       console.log(`Status: ${refund.status}`);
@@ -271,7 +276,7 @@ export async function createRefund(
  * Demonstrates TypeScript for financial data
  */
 export async function getBalanceInfo(): Promise<Balance | null> {
-  console.log('\n=== Getting Balance Info (TypeScript) ===');
+  console.log("\n=== Getting Balance Info (TypeScript) ===");
 
   try {
     const response = await client.balance.get();
@@ -279,7 +284,7 @@ export async function getBalanceInfo(): Promise<Balance | null> {
     if (response.success && response.data) {
       const balance: Balance = response.data;
 
-      console.log('💰 Balance Information:');
+      console.log("💰 Balance Information:");
       console.log(`Currency: ${balance.currency}`);
       console.log(`Gross: ${formatMillimes(balance.gross)}`);
       console.log(`Refunded: ${formatMillimes(balance.refunded)}`);
@@ -307,14 +312,16 @@ export async function getBalanceInfo(): Promise<Balance | null> {
  * Shows TypeScript type guards and discriminated unions
  */
 export function handleErrorWithTypeScript(error: unknown): void {
-  console.log('\n=== Error Handling (TypeScript) ===');
+  console.log("\n=== Error Handling (TypeScript) ===");
 
   // Convert any error to NexaPayError
   const nexaPayError = toNexaPayError(error);
 
   // Type guard checks
   if (isNexaPayApiError(nexaPayError)) {
-    console.log(`📡 API Error ${nexaPayError.statusCode}: ${nexaPayError.message}`);
+    console.log(
+      `📡 API Error ${nexaPayError.statusCode}: ${nexaPayError.message}`,
+    );
 
     // Type-specific properties
     if (nexaPayError.requestId) {
@@ -323,7 +330,7 @@ export function handleErrorWithTypeScript(error: unknown): void {
 
     // Type-safe error classification
     if (nexaPayError.isRateLimitError) {
-      console.log('⏱️ Rate limit exceeded');
+      console.log("⏱️ Rate limit exceeded");
 
       // Type assertion for rate limit errors
       const rateLimitError = nexaPayError as NexaPayRateLimitError;
@@ -331,28 +338,28 @@ export function handleErrorWithTypeScript(error: unknown): void {
         console.log(`Retry after: ${rateLimitError.retryAfter} seconds`);
       }
     } else if (nexaPayError.isAuthenticationError) {
-      console.log('🔐 Authentication error - check your API key');
+      console.log("🔐 Authentication error - check your API key");
 
       // Type assertion for auth errors
       const authError = nexaPayError as NexaPayAuthenticationError;
       console.log(`Auth error details:`, authError.details);
     } else if (nexaPayError.isValidationError) {
-      console.log('📋 Validation error - check your request data');
+      console.log("📋 Validation error - check your request data");
 
       // Type assertion for validation errors
       const validationError = nexaPayError as NexaPayValidationError;
       if (validationError.validationErrors) {
-        console.log('Validation errors:', validationError.validationErrors);
+        console.log("Validation errors:", validationError.validationErrors);
       }
     } else if (nexaPayError.isServerError) {
-      console.log('🖥️ Server error - please try again later');
+      console.log("🖥️ Server error - please try again later");
     }
   } else {
     // Generic error handling
-    console.log('❓ Error:', nexaPayError.message);
+    console.log("❓ Error:", nexaPayError.message);
 
     if (nexaPayError.details) {
-      console.log('Details:', nexaPayError.details);
+      console.log("Details:", nexaPayError.details);
     }
   }
 }
@@ -372,16 +379,16 @@ export interface WebhookEvent {
 export function handleWebhookEvent(
   payload: string | Buffer,
   signature: string,
-  secret: string
+  secret: string,
 ): WebhookEvent | null {
-  console.log('\n=== Handling Webhook (TypeScript) ===');
+  console.log("\n=== Handling Webhook (TypeScript) ===");
 
   try {
     // Type-safe webhook parsing
     const event = client.parseWebhookEvent(payload, signature, secret);
 
     // Basic type checking
-    if (typeof event === 'object' && event !== null) {
+    if (typeof event === "object" && event !== null) {
       const webhookEvent = event as WebhookEvent;
 
       console.log(`📨 Webhook received: ${webhookEvent.event}`);
@@ -390,24 +397,24 @@ export function handleWebhookEvent(
 
       // Type-safe event handling
       switch (webhookEvent.event) {
-        case 'payment_intent.succeeded':
-          console.log('💰 Payment succeeded!');
-          console.log('Data:', webhookEvent.data);
+        case "payment_intent.succeeded":
+          console.log("💰 Payment succeeded!");
+          console.log("Data:", webhookEvent.data);
           break;
 
-        case 'payment_intent.failed':
-          console.log('❌ Payment failed');
-          console.log('Data:', webhookEvent.data);
+        case "payment_intent.failed":
+          console.log("❌ Payment failed");
+          console.log("Data:", webhookEvent.data);
           break;
 
-        case 'payment_intent.refunded':
-          console.log('↩️ Payment refunded');
-          console.log('Data:', webhookEvent.data);
+        case "payment_intent.refunded":
+          console.log("↩️ Payment refunded");
+          console.log("Data:", webhookEvent.data);
           break;
 
-        case 'payout.created':
-          console.log('💸 Payout created');
-          console.log('Data:', webhookEvent.data);
+        case "payout.created":
+          console.log("💸 Payout created");
+          console.log("Data:", webhookEvent.data);
           break;
 
         default:
@@ -419,7 +426,7 @@ export function handleWebhookEvent(
 
     return null;
   } catch (error) {
-    console.error('❌ Webhook verification failed:');
+    console.error("❌ Webhook verification failed:");
     handleErrorWithTypeScript(error);
     return null;
   }
@@ -431,29 +438,31 @@ export function handleWebhookEvent(
  * Demonstrates TypeScript for all available resources
  */
 export async function demonstrateAllResources(): Promise<void> {
-  console.log('\n=== Using All Resources (TypeScript) ===');
+  console.log("\n=== Using All Resources (TypeScript) ===");
 
   // All resources are typed on the client
-  console.log('Available resources:');
-  console.log('- merchants:', typeof client.merchants);
-  console.log('- paymentIntents:', typeof client.paymentIntents);
-  console.log('- refunds:', typeof client.refunds);
-  console.log('- payouts:', typeof client.payouts);
-  console.log('- webhooks:', typeof client.webhooks);
-  console.log('- balance:', typeof client.balance);
-  console.log('- transactions:', typeof client.transactions);
-  console.log('- developer:', typeof client.developer);
+  console.log("Available resources:");
+  console.log("- merchants:", typeof client.merchants);
+  console.log("- paymentIntents:", typeof client.paymentIntents);
+  console.log("- refunds:", typeof client.refunds);
+  console.log("- payouts:", typeof client.payouts);
+  console.log("- webhooks:", typeof client.webhooks);
+  console.log("- balance:", typeof client.balance);
+  console.log("- transactions:", typeof client.transactions);
+  console.log("- developer:", typeof client.developer);
 
   // Example: Get transactions
   try {
     const response = await client.transactions.list();
 
     if (response.success && response.data) {
-      console.log('\n📊 Transactions:');
+      console.log("\n📊 Transactions:");
 
       // Type-safe array iteration
       response.data.intents.forEach((transaction, index) => {
-        console.log(`${index + 1}. ${transaction.type.toUpperCase()}: ${transaction.id}`);
+        console.log(
+          `${index + 1}. ${transaction.type.toUpperCase()}: ${transaction.id}`,
+        );
         console.log(`   Amount: ${formatMillimes(transaction.amount)}`);
         console.log(`   Status: ${transaction.status}`);
 
@@ -463,7 +472,9 @@ export async function demonstrateAllResources(): Promise<void> {
       });
     }
   } catch (error) {
-    console.log('Note: Could not fetch transactions (might need specific permissions)');
+    console.log(
+      "Note: Could not fetch transactions (might need specific permissions)",
+    );
   }
 }
 
@@ -479,34 +490,40 @@ function formatMillimes(millimes: number): string {
  * Main function to run TypeScript examples
  */
 async function runTypeScriptExamples(): Promise<void> {
-  console.log('🚀 Running NexaPay TypeScript Examples');
-  console.log('=======================================\n');
+  console.log("🚀 Running NexaPay TypeScript Examples");
+  console.log("=======================================\n");
 
   // Example order data with TypeScript interface
   const order: OrderData = {
-    orderId: 'TS-123',
-    productName: 'TypeScript Course',
-    customerId: 'cust-ts-456',
+    orderId: "TS-123",
+    productName: "TypeScript Course",
+    customerId: "cust-ts-456",
     metadata: {
-      category: 'education',
-      platform: 'web',
+      category: "education",
+      platform: "web",
     },
   };
 
   // Run examples
-  const intent = await createPaymentIntent(29900, 'TND', order, 'student@example.tn', 'TypeScript Learner');
+  const intent = await createPaymentIntent(
+    29900,
+    "TND",
+    order,
+    "student@example.tn",
+    "TypeScript Learner",
+  );
 
   if (intent) {
     await processPaymentIntent(intent.intent_id);
 
     // Example card data (test card)
     const testCard = {
-      number: '4242424242424242',
-      expiryMonth: '12',
-      expiryYear: '2029',
-      cvv: '123',
-      pin: '1234',
-      holderName: 'TypeScript Tester',
+      number: "4242424242424242",
+      expiryMonth: "12",
+      expiryYear: "2029",
+      cvv: "123",
+      pin: "1234",
+      holderName: "TypeScript Tester",
     };
 
     // Note: In production, use hosted checkout instead of direct confirmation
@@ -520,24 +537,24 @@ async function runTypeScriptExamples(): Promise<void> {
   await demonstrateAllResources();
 
   // Example error handling
-  console.log('\n=== Demonstrating Error Handling ===');
+  console.log("\n=== Demonstrating Error Handling ===");
   try {
     // This will fail with invalid endpoint
-    await client.get('/invalid-endpoint');
+    await client.get("/invalid-endpoint");
   } catch (error) {
     handleErrorWithTypeScript(error);
   }
 
-  console.log('\n=======================================');
-  console.log('✅ TypeScript examples completed!');
-  console.log('\n📝 TypeScript Features Demonstrated:');
-  console.log('• Type-safe API requests and responses');
-  console.log('• Interface definitions for custom data');
-  console.log('• Type guards for error handling');
-  console.log('• Discriminated unions for status handling');
-  console.log('• Generic type parameters');
-  console.log('• Type assertions when needed');
-  console.log('• Utility types for common patterns');
+  console.log("\n=======================================");
+  console.log("✅ TypeScript examples completed!");
+  console.log("\n📝 TypeScript Features Demonstrated:");
+  console.log("• Type-safe API requests and responses");
+  console.log("• Interface definitions for custom data");
+  console.log("• Type guards for error handling");
+  console.log("• Discriminated unions for status handling");
+  console.log("• Generic type parameters");
+  console.log("• Type assertions when needed");
+  console.log("• Utility types for common patterns");
 }
 
 // Export all functions for use in other modules

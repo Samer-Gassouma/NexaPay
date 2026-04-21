@@ -36,7 +36,7 @@ const NexaPay = require('@nexapay/node-sdk');
 const client = new NexaPay({
   apiKey: 'nxp_merchant_abc123def456ghi789_12345678',
   // Optional: override default base URL
-  // baseURL: 'https://nexapay.space/backend',
+  // baseURL: 'https://backend.nexapay.space',
   // timeout: 30000, // milliseconds
 });
 
@@ -301,7 +301,7 @@ const client = new NexaPay({
   apiKey: 'nxp_merchant_abc123def456ghi789_12345678',
   
   // Optional
-  baseURL: 'https://nexapay.space/backend', // Default
+  baseURL: 'https://backend.nexapay.space', // Default
   timeout: 30000, // 30 seconds, default
   headers: {
     'X-Custom-Header': 'value'

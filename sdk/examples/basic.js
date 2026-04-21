@@ -6,17 +6,17 @@
  */
 
 // Import the NexaPay SDK (CommonJS syntax)
-const NexaPay = require('@nexapay/node-sdk');
+const NexaPay = require("@nexapay/node-sdk");
 
 // ES Modules alternative:
 // import NexaPay from '@nexapay/node-sdk';
 
 // Initialize the client with your API key
 const client = new NexaPay({
-  apiKey: 'nxp_merchant_abc123def456ghi789_12345678',
+  apiKey: "nxp_merchant_abc123def456ghi789_12345678",
   // Optional: override default base URL for testing
   // baseURL: 'http://localhost:8088', // Local development
-  // baseURL: 'https://nexapay.space/backend', // Production (default)
+  // baseURL: 'https://backend.nexapay.space', // Production (default)
   timeout: 30000, // 30 seconds (default)
 });
 
@@ -27,28 +27,29 @@ const client = new NexaPay({
  * After creating an intent, redirect the customer to the checkout_url.
  */
 async function createPaymentIntent() {
-  console.log('=== Example 1: Creating Payment Intent ===');
+  console.log("=== Example 1: Creating Payment Intent ===");
 
   try {
     const response = await client.paymentIntents.create({
       amount: 42000, // Amount in millimes (1 TND = 1000 millimes, so 42000 = 42.000 TND)
-      currency: 'TND', // Optional, defaults to 'TND'
-      description: 'Order #42', // Optional
-      customer_email: 'customer@example.tn', // Optional
-      customer_name: 'Ahmed Ben Ali', // Optional
-      metadata: { // Optional custom metadata
-        order_id: '42',
-        product: 'Premium Subscription'
+      currency: "TND", // Optional, defaults to 'TND'
+      description: "Order #42", // Optional
+      customer_email: "customer@example.tn", // Optional
+      customer_name: "Ahmed Ben Ali", // Optional
+      metadata: {
+        // Optional custom metadata
+        order_id: "42",
+        product: "Premium Subscription",
       },
-      idempotency_key: 'order-42-attempt-1' // Optional, prevents duplicate payments
+      idempotency_key: "order-42-attempt-1", // Optional, prevents duplicate payments
     });
 
     if (response.success) {
-      console.log('✅ Payment intent created successfully!');
-      console.log('Intent ID:', response.data.intent_id);
-      console.log('Status:', response.data.status);
-      console.log('Checkout URL:', response.data.checkout_url);
-      console.log('Amount:', response.data.amount, response.data.currency);
+      console.log("✅ Payment intent created successfully!");
+      console.log("Intent ID:", response.data.intent_id);
+      console.log("Status:", response.data.status);
+      console.log("Checkout URL:", response.data.checkout_url);
+      console.log("Amount:", response.data.amount, response.data.currency);
 
       // In a real application, you would:
       // 1. Save the intent_id to your database
@@ -57,10 +58,10 @@ async function createPaymentIntent() {
 
       return response.data;
     } else {
-      console.error('❌ Failed to create payment intent:', response.error);
+      console.error("❌ Failed to create payment intent:", response.error);
     }
   } catch (error) {
-    console.error('❌ Error creating payment intent:');
+    console.error("❌ Error creating payment intent:");
     handleError(error);
   }
 }
@@ -71,27 +72,32 @@ async function createPaymentIntent() {
  * Fetch details of an existing payment intent.
  */
 async function retrievePaymentIntent(intentId) {
-  console.log('\n=== Example 2: Retrieving Payment Intent ===');
+  console.log("\n=== Example 2: Retrieving Payment Intent ===");
 
   try {
     const response = await client.paymentIntents.get(intentId);
 
     if (response.success) {
-      console.log('✅ Payment intent retrieved:');
-      console.log('ID:', response.data.intent_id);
-      console.log('Status:', response.data.status);
-      console.log('Amount:', response.data.amount, response.data.currency);
+      console.log("✅ Payment intent retrieved:");
+      console.log("ID:", response.data.intent_id);
+      console.log("Status:", response.data.status);
+      console.log("Amount:", response.data.amount, response.data.currency);
 
       if (response.data.card_last4) {
-        console.log('Card:', response.data.card_brand, '••••', response.data.card_last4);
+        console.log(
+          "Card:",
+          response.data.card_brand,
+          "••••",
+          response.data.card_last4,
+        );
       }
 
       return response.data;
     } else {
-      console.error('❌ Failed to retrieve payment intent:', response.error);
+      console.error("❌ Failed to retrieve payment intent:", response.error);
     }
   } catch (error) {
-    console.error('❌ Error retrieving payment intent:');
+    console.error("❌ Error retrieving payment intent:");
     handleError(error);
   }
 }
@@ -108,33 +114,33 @@ async function retrievePaymentIntent(intentId) {
  * - 4000000000000002 (PIN: 1234) - Declined
  */
 async function confirmPaymentIntent(intentId) {
-  console.log('\n=== Example 3: Confirming Payment Intent ===');
+  console.log("\n=== Example 3: Confirming Payment Intent ===");
 
   try {
     const response = await client.paymentIntents.confirm(intentId, {
-      card_number: '4242424242424242', // Test card for success
-      expiry_month: '12',
-      expiry_year: '2029',
-      cvv: '123',
-      pin: '1234', // 4-digit PIN
-      card_holder_name: 'Ahmed Ben Ali' // Optional
+      card_number: "4242424242424242", // Test card for success
+      expiry_month: "12",
+      expiry_year: "2029",
+      cvv: "123",
+      pin: "1234", // 4-digit PIN
+      card_holder_name: "Ahmed Ben Ali", // Optional
     });
 
     if (response.success) {
-      console.log('✅ Payment confirmed successfully!');
-      console.log('Status:', response.data.status);
-      console.log('Redirect URL:', response.data.redirect_url);
+      console.log("✅ Payment confirmed successfully!");
+      console.log("Status:", response.data.status);
+      console.log("Redirect URL:", response.data.redirect_url);
 
       if (response.data.failure_reason) {
-        console.log('Failure reason:', response.data.failure_reason);
+        console.log("Failure reason:", response.data.failure_reason);
       }
     } else {
-      console.error('❌ Payment confirmation failed:', response.error);
+      console.error("❌ Payment confirmation failed:", response.error);
     }
 
     return response.data;
   } catch (error) {
-    console.error('❌ Error confirming payment intent:');
+    console.error("❌ Error confirming payment intent:");
     handleError(error);
   }
 }
@@ -145,31 +151,33 @@ async function confirmPaymentIntent(intentId) {
  * Check available balance for payouts.
  */
 async function getMerchantBalance() {
-  console.log('\n=== Example 4: Getting Merchant Balance ===');
+  console.log("\n=== Example 4: Getting Merchant Balance ===");
 
   try {
     const response = await client.balance.get();
 
     if (response.success) {
-      console.log('✅ Balance retrieved:');
-      console.log('Currency:', response.data.currency);
-      console.log('Gross:', response.data.gross, 'millimes');
-      console.log('Refunded:', response.data.refunded, 'millimes');
-      console.log('Pending:', response.data.pending, 'millimes');
-      console.log('Available:', response.data.available, 'millimes');
-      console.log('Payouts:', response.data.payouts, 'millimes');
+      console.log("✅ Balance retrieved:");
+      console.log("Currency:", response.data.currency);
+      console.log("Gross:", response.data.gross, "millimes");
+      console.log("Refunded:", response.data.refunded, "millimes");
+      console.log("Pending:", response.data.pending, "millimes");
+      console.log("Available:", response.data.available, "millimes");
+      console.log("Payouts:", response.data.payouts, "millimes");
 
       // Convert to TND for display
       const grossTND = response.data.gross / 1000;
       const availableTND = response.data.available / 1000;
-      console.log(`\n📊 Summary: ${grossTND.toFixed(3)} TND gross, ${availableTND.toFixed(3)} TND available for payout`);
+      console.log(
+        `\n📊 Summary: ${grossTND.toFixed(3)} TND gross, ${availableTND.toFixed(3)} TND available for payout`,
+      );
 
       return response.data;
     } else {
-      console.error('❌ Failed to get balance:', response.error);
+      console.error("❌ Failed to get balance:", response.error);
     }
   } catch (error) {
-    console.error('❌ Error getting balance:');
+    console.error("❌ Error getting balance:");
     handleError(error);
   }
 }
@@ -180,28 +188,28 @@ async function getMerchantBalance() {
  * Refund a successful payment (full or partial).
  */
 async function createRefund(intentId) {
-  console.log('\n=== Example 5: Creating Refund ===');
+  console.log("\n=== Example 5: Creating Refund ===");
 
   try {
     const response = await client.refunds.create({
       intent_id: intentId,
       amount: 21000, // Optional, defaults to full amount (21000 = 21.000 TND)
-      reason: 'Customer requested refund' // Optional
+      reason: "Customer requested refund", // Optional
     });
 
     if (response.success) {
-      console.log('✅ Refund created successfully!');
-      console.log('Refund ID:', response.data.refund_id);
-      console.log('Amount:', response.data.amount, 'millimes');
-      console.log('Status:', response.data.status);
-      console.log('Intent Status:', response.data.intent_status);
+      console.log("✅ Refund created successfully!");
+      console.log("Refund ID:", response.data.refund_id);
+      console.log("Amount:", response.data.amount, "millimes");
+      console.log("Status:", response.data.status);
+      console.log("Intent Status:", response.data.intent_status);
 
       return response.data;
     } else {
-      console.error('❌ Failed to create refund:', response.error);
+      console.error("❌ Failed to create refund:", response.error);
     }
   } catch (error) {
-    console.error('❌ Error creating refund:');
+    console.error("❌ Error creating refund:");
     handleError(error);
   }
 }
@@ -213,7 +221,7 @@ async function createRefund(intentId) {
  * This is a demonstration of the verification logic.
  */
 function demonstrateWebhookVerification() {
-  console.log('\n=== Example 6: Webhook Verification ===');
+  console.log("\n=== Example 6: Webhook Verification ===");
 
   // In a real Express app:
   /*
@@ -251,11 +259,11 @@ function demonstrateWebhookVerification() {
   });
   */
 
-  console.log('📝 Webhook verification logic shown in comments.');
-  console.log('To use webhooks:');
-  console.log('1. Create a webhook endpoint in your app');
-  console.log('2. Register it with client.webhooks.create()');
-  console.log('3. Use client.parseWebhookEvent() to verify incoming webhooks');
+  console.log("📝 Webhook verification logic shown in comments.");
+  console.log("To use webhooks:");
+  console.log("1. Create a webhook endpoint in your app");
+  console.log("2. Register it with client.webhooks.create()");
+  console.log("3. Use client.parseWebhookEvent() to verify incoming webhooks");
 }
 
 /**
@@ -264,34 +272,38 @@ function demonstrateWebhookVerification() {
  * Demonstrate comprehensive error handling.
  */
 async function demonstrateErrorHandling() {
-  console.log('\n=== Example 7: Error Handling ===');
+  console.log("\n=== Example 7: Error Handling ===");
 
   try {
     // This will fail with invalid API key
     const invalidClient = new NexaPay({
-      apiKey: 'invalid_key'
+      apiKey: "invalid_key",
     });
 
     await invalidClient.balance.get();
   } catch (error) {
-    console.log('Example error handling:');
+    console.log("Example error handling:");
 
     if (error.isNexaPayApiError) {
-      console.log('📡 API Error:', error.statusCode, error.message);
+      console.log("📡 API Error:", error.statusCode, error.message);
 
       if (error.isRateLimitError) {
-        console.log('⏱️  Rate limit exceeded, retry after:', error.retryAfter, 'seconds');
+        console.log(
+          "⏱️  Rate limit exceeded, retry after:",
+          error.retryAfter,
+          "seconds",
+        );
       } else if (error.isAuthenticationError) {
-        console.log('🔐 Authentication failed, check your API key');
+        console.log("🔐 Authentication failed, check your API key");
       } else if (error.isValidationError) {
-        console.log('📋 Validation failed:', error.validationErrors);
+        console.log("📋 Validation failed:", error.validationErrors);
       } else if (error.isServerError) {
-        console.log('🖥️  Server error, please try again later');
+        console.log("🖥️  Server error, please try again later");
       }
     } else if (error.isNexaPayNetworkError) {
-      console.log('🌐 Network error:', error.message);
+      console.log("🌐 Network error:", error.message);
     } else {
-      console.log('❓ Unexpected error:', error);
+      console.log("❓ Unexpected error:", error);
     }
   }
 }
@@ -301,15 +313,15 @@ async function demonstrateErrorHandling() {
  */
 function handleError(error) {
   if (error.isNexaPayApiError) {
-    console.log('API Error', error.statusCode + ':', error.message);
+    console.log("API Error", error.statusCode + ":", error.message);
 
     if (error.requestId) {
-      console.log('Request ID:', error.requestId);
+      console.log("Request ID:", error.requestId);
     }
   } else if (error.isNexaPayNetworkError) {
-    console.log('Network Error:', error.message);
+    console.log("Network Error:", error.message);
   } else {
-    console.log('Error:', error.message || error);
+    console.log("Error:", error.message || error);
   }
 }
 
@@ -317,8 +329,8 @@ function handleError(error) {
  * Main function to run all examples
  */
 async function runAllExamples() {
-  console.log('🚀 Starting NexaPay SDK Examples');
-  console.log('================================\n');
+  console.log("🚀 Starting NexaPay SDK Examples");
+  console.log("================================\n");
 
   // Note: These examples require actual API calls.
   // Uncomment and modify to run with your actual credentials.
@@ -348,13 +360,13 @@ async function runAllExamples() {
   // Example 7: Error handling
   await demonstrateErrorHandling();
 
-  console.log('\n================================');
-  console.log('✅ Examples completed!');
-  console.log('\n📚 Next steps:');
-  console.log('1. Get an API key from https://nexapay.space/dev');
-  console.log('2. Update the API key in this example');
-  console.log('3. Uncomment the example calls above');
-  console.log('4. Run with: node examples/basic.js');
+  console.log("\n================================");
+  console.log("✅ Examples completed!");
+  console.log("\n📚 Next steps:");
+  console.log("1. Get an API key from https://nexapay.space/dev");
+  console.log("2. Update the API key in this example");
+  console.log("3. Uncomment the example calls above");
+  console.log("4. Run with: node examples/basic.js");
 }
 
 /**
@@ -363,23 +375,26 @@ async function runAllExamples() {
  * Example of using developer-specific endpoints.
  */
 async function getDeveloperSnippets() {
-  console.log('\n=== Developer Documentation Snippets ===');
+  console.log("\n=== Developer Documentation Snippets ===");
 
   // Requires a developer API key (nxp_developer_...)
   const devClient = new NexaPay({
-    apiKey: 'nxp_developer_abc123def456ghi789_87654321'
+    apiKey: "nxp_developer_abc123def456ghi789_87654321",
   });
 
   try {
     const response = await devClient.developer.docsSnippets();
 
     if (response.success) {
-      console.log('📖 Documentation snippets available');
-      console.log('Test cards:', JSON.stringify(response.data.test_cards, null, 2));
-      console.log('Checkout URL pattern:', response.data.checkout_url_pattern);
+      console.log("📖 Documentation snippets available");
+      console.log(
+        "Test cards:",
+        JSON.stringify(response.data.test_cards, null, 2),
+      );
+      console.log("Checkout URL pattern:", response.data.checkout_url_pattern);
     }
   } catch (error) {
-    console.log('Note: This requires a developer API key');
+    console.log("Note: This requires a developer API key");
   }
 }
 
@@ -397,5 +412,5 @@ module.exports = {
   createRefund,
   demonstrateWebhookVerification,
   demonstrateErrorHandling,
-  getDeveloperSnippets
+  getDeveloperSnippets,
 };

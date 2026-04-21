@@ -11,7 +11,7 @@ export interface NexaPayConfig {
 
   /**
    * Base URL for the NexaPay API
-   * @default 'https://nexapay.space/backend'
+   * @default 'https://backend.nexapay.space'
    */
   baseURL?: string;
 
