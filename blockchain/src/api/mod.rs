@@ -79,6 +79,16 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route("/network/stats", get(network::network_stats))
         .route("/dev/register", post(network::register_developer))
+        .route("/dev/login", post(network::login_developer))
+        .route("/dev/portal/overview", get(network::developer_portal_overview))
+        .route(
+            "/dev/portal/merchants/register",
+            post(network::developer_portal_register_merchant),
+        )
+        .route(
+            "/dev/portal/api-keys/rotate",
+            post(network::developer_portal_rotate_key),
+        )
         .route("/dev/repair_account", post(network::repair_account))
         .route("/api-keys/rotate", post(key_management::rotate_api_key))
         .route("/api-keys/revoke", post(key_management::revoke_api_key))
@@ -95,6 +105,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/gateway/v1/merchants/stats", get(gateway::merchant_stats))
         .route("/gateway/v1/intents", post(gateway::create_intent))
         .route("/gateway/v1/intents/:intent_id", get(gateway::get_intent))
+        .route(
+            "/gateway/v1/intents/:intent_id/public",
+            get(gateway::get_intent_public),
+        )
         .route(
             "/gateway/v1/intents/:intent_id/confirm",
             post(gateway::confirm_intent),

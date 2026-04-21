@@ -40,7 +40,7 @@ pub struct ConfirmIntentRequest {
     pub expiry_month: String,
     pub expiry_year: String,
     pub cvv: String,
-    pub pin: String,
+    pub pin: Option<String>, // Made optional but no longer required
     pub card_holder_name: Option<String>,
 }
 
@@ -113,7 +113,8 @@ pub async fn register_merchant(
     .await
     .map_err(|e| api_error(StatusCode::BAD_REQUEST, &format!("merchant registration failed: {e}")))?;
 
-    let (merchant_key, merchant_hash, merchant_prefix, checksum) = create_structured_api_key("merchant");
+    let (merchant_key, merchant_hash, merchant_prefix, checksum) =
+        create_structured_api_key("merchant");
     let permissions = vec![
         "intents:write".to_string(),
         "intents:read".to_string(),
@@ -140,7 +141,10 @@ pub async fn register_merchant(
 
     if let Some(webhook_url) = payload.webhook_url {
         if !webhook_url.trim().is_empty() {
-            let secret = format!("whsec_{}", &sha256_hex(format!("{}:{}", merchant_code, now_ts()).as_bytes())[..24]);
+            let secret = format!(
+                "whsec_{}",
+                &sha256_hex(format!("{}:{}", merchant_code, now_ts()).as_bytes())[..24]
+            );
             let event_types = "payment_intent.succeeded,payment_intent.failed,payment_intent.refunded,payout.created";
             let _ = sqlx::query(
                 "INSERT INTO webhooks (merchant_id, url, event_types, signing_secret, is_active)
@@ -155,7 +159,14 @@ pub async fn register_merchant(
         }
     }
 
-    log_api_call(&state, Some(&principal), "/gateway/v1/merchants/register", "POST", 200).await;
+    log_api_call(
+        &state,
+        Some(&principal),
+        "/gateway/v1/merchants/register",
+        "POST",
+        200,
+    )
+    .await;
 
     Ok(Json(json!({
         "success": true,
@@ -216,7 +227,14 @@ pub async fn merchant_stats(
     )
     .await;
 
-    log_api_call(&state, Some(&principal), "/gateway/v1/merchants/stats", "GET", 200).await;
+    log_api_call(
+        &state,
+        Some(&principal),
+        "/gateway/v1/merchants/stats",
+        "GET",
+        200,
+    )
+    .await;
 
     Ok(Json(json!({
         "success": true,
@@ -252,7 +270,10 @@ pub async fn create_intent(
     let merchant_id = merchant_id_from_principal(&principal)?;
 
     if payload.amount == 0 {
-        return Err(api_error(StatusCode::BAD_REQUEST, "Amount must be greater than 0"));
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "Amount must be greater than 0",
+        ));
     }
 
     if let Some(idempotency_key) = payload.idempotency_key.as_ref() {
@@ -267,8 +288,12 @@ pub async fn create_intent(
         {
             let intent_id: String = row.try_get("intent_id").unwrap_or_default();
             let amount: i64 = row.try_get("amount").unwrap_or(0);
-            let currency: String = row.try_get("currency").unwrap_or_else(|_| "TND".to_string());
-            let status: String = row.try_get("status").unwrap_or_else(|_| "requires_confirmation".to_string());
+            let currency: String = row
+                .try_get("currency")
+                .unwrap_or_else(|_| "TND".to_string());
+            let status: String = row
+                .try_get("status")
+                .unwrap_or_else(|_| "requires_confirmation".to_string());
             let description: Option<String> = row.try_get("description").ok();
 
             return Ok(Json(json!({
@@ -284,8 +309,14 @@ pub async fn create_intent(
         }
     }
 
-    let intent_id = format!("pi_{}", &sha256_hex(format!("{}:{}", Uuid::new_v4(), now_ts()).as_bytes())[..16]);
-    let currency = payload.currency.unwrap_or_else(|| "TND".to_string()).to_uppercase();
+    let intent_id = format!(
+        "pi_{}",
+        &sha256_hex(format!("{}:{}", Uuid::new_v4(), now_ts()).as_bytes())[..16]
+    );
+    let currency = payload
+        .currency
+        .unwrap_or_else(|| "TND".to_string())
+        .to_uppercase();
 
     sqlx::query(
         "INSERT INTO payment_intents (intent_id, merchant_id, amount, currency, status, description, customer_email, customer_name, metadata, idempotency_key, payment_method)
@@ -350,7 +381,14 @@ pub async fn get_intent(
         None => return Err(api_error(StatusCode::NOT_FOUND, "Payment intent not found")),
     };
 
-    log_api_call(&state, Some(&principal), "/gateway/v1/intents/:intent_id", "GET", 200).await;
+    log_api_call(
+        &state,
+        Some(&principal),
+        "/gateway/v1/intents/:intent_id",
+        "GET",
+        200,
+    )
+    .await;
 
     Ok(Json(json!({
         "success": true,
@@ -365,7 +403,48 @@ pub async fn get_intent(
         "card_brand": row.try_get::<Option<String>, _>("card_brand").ok().flatten(),
         "failure_reason": row.try_get::<Option<String>, _>("failure_reason").ok().flatten(),
         "created_at": row.try_get::<chrono::DateTime<chrono::Utc>, _>("created_at").map(|v| v.to_rfc3339()).ok(),
-        "confirmed_at": row.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("confirmed_at").ok().flatten().map(|v| v.to_rfc3339())
+        "confirmed_at": row.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("confirmed_at").ok().flatten().map(|v| v.to_rfc3339()),
+        "checkout_url": format!("{}/checkout/{}", state.portal_base_url, intent_id),
+        "client_secret": sha256_hex(format!("{}:{}", intent_id, merchant_id).as_bytes())
+    })))
+}
+
+pub async fn get_intent_public(
+    State(state): State<AppState>,
+    Path(intent_id): Path<String>,
+) -> Result<Json<Value>, (StatusCode, HeaderMap, Json<Value>)> {
+    let row = sqlx::query(
+        "SELECT p.intent_id, p.amount, p.currency, p.status, p.description, p.customer_email, p.customer_name, p.card_last4, p.card_brand, p.created_at, p.confirmed_at, m.name as merchant_name, m.business_name
+         FROM payment_intents p
+         JOIN merchants m ON p.merchant_id = m.id
+         WHERE p.intent_id = $1 LIMIT 1",
+    )
+    .bind(&intent_id)
+    .fetch_optional(&state.pg_pool)
+    .await
+    .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Database error"))?;
+
+    let row = match row {
+        Some(r) => r,
+        None => return Err(api_error(StatusCode::NOT_FOUND, "Payment intent not found")),
+    };
+
+    Ok(Json(json!({
+        "success": true,
+        "intent_id": row.try_get::<String, _>("intent_id").unwrap_or_default(),
+        "amount": row.try_get::<i64, _>("amount").unwrap_or(0),
+        "currency": row.try_get::<String, _>("currency").unwrap_or_else(|_| "TND".to_string()),
+        "status": row.try_get::<String, _>("status").unwrap_or_else(|_| "unknown".to_string()),
+        "description": row.try_get::<Option<String>, _>("description").ok().flatten(),
+        "customer_email": row.try_get::<Option<String>, _>("customer_email").ok().flatten(),
+        "customer_name": row.try_get::<Option<String>, _>("customer_name").ok().flatten(),
+        "card_last4": row.try_get::<Option<String>, _>("card_last4").ok().flatten(),
+        "card_brand": row.try_get::<Option<String>, _>("card_brand").ok().flatten(),
+        "created_at": row.try_get::<chrono::DateTime<chrono::Utc>, _>("created_at").map(|v| v.to_rfc3339()).ok(),
+        "confirmed_at": row.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("confirmed_at").ok().flatten().map(|v| v.to_rfc3339()),
+        "merchant_name": row.try_get::<String, _>("merchant_name").unwrap_or_default(),
+        "business_name": row.try_get::<Option<String>, _>("business_name").ok().flatten(),
+        "checkout_url": format!("{}/checkout/{}", state.portal_base_url, intent_id),
     })))
 }
 
@@ -383,7 +462,7 @@ pub async fn confirm_intent(
     enforce_confirm_attempt_limit(&state, &request_ip).await?;
 
     let row = sqlx::query(
-        "SELECT id, merchant_id, amount, currency, status, description, customer_email
+        "SELECT id, merchant_id, amount, currency, status, description, customer_email, created_at
          FROM payment_intents WHERE intent_id = $1 LIMIT 1",
     )
     .bind(&intent_id)
@@ -405,6 +484,27 @@ pub async fn confirm_intent(
     let status: String = row
         .try_get("status")
         .unwrap_or_else(|_| "requires_confirmation".to_string());
+    let created_at: chrono::DateTime<chrono::Utc> = row.try_get("created_at").map_err(|_| {
+        api_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Invalid intent created_at",
+        )
+    })?;
+
+    if chrono::Utc::now() > created_at + chrono::Duration::minutes(10) {
+        // Mark as failed if it's expired, or just return an error
+        let _ = sqlx::query(
+            "UPDATE payment_intents SET status = 'failed', failure_reason = 'session_expired', updated_at = NOW() WHERE id = $1"
+        )
+        .bind(intent_uuid)
+        .execute(&state.pg_pool)
+        .await;
+
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "Payment session has expired (10 minutes limit).",
+        ));
+    }
 
     if let Some(principal) = optional_principal.as_ref() {
         if let ApiPrincipal::Merchant {
@@ -413,7 +513,10 @@ pub async fn confirm_intent(
         } = principal
         {
             if principal_merchant != &merchant_id {
-                return Err(api_error(StatusCode::FORBIDDEN, "Intent does not belong to this merchant"));
+                return Err(api_error(
+                    StatusCode::FORBIDDEN,
+                    "Intent does not belong to this merchant",
+                ));
             }
         }
     }
@@ -428,14 +531,14 @@ pub async fn confirm_intent(
     }
 
     if status == "refunded" {
-        return Err(api_error(StatusCode::BAD_REQUEST, "Intent already refunded"));
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "Intent already refunded",
+        ));
     }
 
     let card_number_clean = payload.card_number.replace(' ', "");
-    let card_valid = is_luhn_valid(&card_number_clean)
-        && payload.cvv.len() >= 3
-        && payload.pin.len() == 4
-        && payload.pin.chars().all(|c| c.is_ascii_digit());
+    let card_valid = is_luhn_valid(&card_number_clean) && payload.cvv.len() >= 3;
 
     let card_last4 = card_number_clean
         .chars()
@@ -454,14 +557,24 @@ pub async fn confirm_intent(
         "unknown"
     };
 
-    let test_card_result = evaluate_test_card(&card_number_clean, &payload.pin);
+    let test_card_result = evaluate_test_card(&card_number_clean, payload.pin.as_deref());
     let approved = test_card_result.unwrap_or(
         card_valid
             && card_number_clean.len() >= 15
-            && payload.pin != "0000"
-            && payload.expiry_month.parse::<u32>().ok().map(|m| (1..=12).contains(&m)).unwrap_or(false)
+            && payload
+                .expiry_month
+                .parse::<u32>()
+                .ok()
+                .map(|m| (1..=12).contains(&m))
+                .unwrap_or(false)
             && payload.expiry_year.len() == 4
-            && payload.card_holder_name.clone().unwrap_or_default().trim().len() >= 3,
+            && payload
+                .card_holder_name
+                .clone()
+                .unwrap_or_default()
+                .trim()
+                .len()
+                >= 3,
     );
 
     let final_status = if approved { "succeeded" } else { "failed" };
@@ -545,7 +658,10 @@ pub async fn create_refund(
         .map_err(|e| auth_error_response(e, "Invalid API key"))?;
 
     if !has_permission(&principal, "refunds:write") {
-        return Err(api_error(StatusCode::FORBIDDEN, "This key cannot issue refunds"));
+        return Err(api_error(
+            StatusCode::FORBIDDEN,
+            "This key cannot issue refunds",
+        ));
     }
 
     let merchant_id = merchant_id_from_principal(&principal)?;
@@ -587,7 +703,10 @@ pub async fn create_refund(
 
     let refundable = original_amount.saturating_sub(already_refunded);
     if refundable == 0 {
-        return Err(api_error(StatusCode::BAD_REQUEST, "Intent is fully refunded"));
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "Intent is fully refunded",
+        ));
     }
 
     let refund_amount = payload.amount.unwrap_or(refundable);
@@ -598,7 +717,10 @@ pub async fn create_refund(
         ));
     }
 
-    let refund_id = format!("rf_{}", &sha256_hex(format!("{}:{}", payload.intent_id, now_ts()).as_bytes())[..16]);
+    let refund_id = format!(
+        "rf_{}",
+        &sha256_hex(format!("{}:{}", payload.intent_id, now_ts()).as_bytes())[..16]
+    );
 
     sqlx::query(
         "INSERT INTO refunds (refund_id, intent_id, merchant_id, amount, reason, status)
@@ -625,7 +747,12 @@ pub async fn create_refund(
         .bind(intent_uuid)
         .execute(&state.pg_pool)
         .await
-        .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to update intent status"))?;
+        .map_err(|_| {
+            api_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to update intent status",
+            )
+        })?;
 
     dispatch_webhooks(
         &state,
@@ -661,7 +788,10 @@ pub async fn gateway_balance(
         .map_err(|e| auth_error_response(e, "Invalid API key"))?;
 
     if !has_permission(&principal, "balance:read") {
-        return Err(api_error(StatusCode::FORBIDDEN, "This key cannot read balance"));
+        return Err(api_error(
+            StatusCode::FORBIDDEN,
+            "This key cannot read balance",
+        ));
     }
 
     let merchant_id = merchant_id_from_principal(&principal)?;
@@ -713,7 +843,9 @@ pub async fn gateway_transactions(
         .await
         .map_err(|e| auth_error_response(e, "Invalid API key"))?;
 
-    if !has_permission(&principal, "transactions:read") && !has_permission(&principal, "intents:read") {
+    if !has_permission(&principal, "transactions:read")
+        && !has_permission(&principal, "intents:read")
+    {
         return Err(api_error(
             StatusCode::FORBIDDEN,
             "This key cannot read transactions",
@@ -775,7 +907,14 @@ pub async fn gateway_transactions(
         })
         .collect::<Vec<_>>();
 
-    log_api_call(&state, Some(&principal), "/gateway/v1/transactions", "GET", 200).await;
+    log_api_call(
+        &state,
+        Some(&principal),
+        "/gateway/v1/transactions",
+        "GET",
+        200,
+    )
+    .await;
 
     Ok(Json(json!({
         "success": true,
@@ -794,7 +933,10 @@ pub async fn gateway_payout(
         .map_err(|e| auth_error_response(e, "Invalid API key"))?;
 
     if !has_permission(&principal, "payouts:write") {
-        return Err(api_error(StatusCode::FORBIDDEN, "This key cannot create payouts"));
+        return Err(api_error(
+            StatusCode::FORBIDDEN,
+            "This key cannot create payouts",
+        ));
     }
 
     let merchant_id = merchant_id_from_principal(&principal)?;
@@ -833,7 +975,10 @@ pub async fn gateway_payout(
         ));
     }
 
-    let payout_id = format!("po_{}", &sha256_hex(format!("{}:{}", merchant_id, now_ts()).as_bytes())[..16]);
+    let payout_id = format!(
+        "po_{}",
+        &sha256_hex(format!("{}:{}", merchant_id, now_ts()).as_bytes())[..16]
+    );
 
     sqlx::query(
         "INSERT INTO payouts (payout_id, merchant_id, amount, destination, status)
@@ -880,7 +1025,10 @@ pub async fn create_webhook(
         .map_err(|e| auth_error_response(e, "Invalid API key"))?;
 
     if !has_permission(&principal, "webhooks:manage") {
-        return Err(api_error(StatusCode::FORBIDDEN, "This key cannot manage webhooks"));
+        return Err(api_error(
+            StatusCode::FORBIDDEN,
+            "This key cannot manage webhooks",
+        ));
     }
 
     let merchant_id = merchant_id_from_principal(&principal)?;
@@ -920,13 +1068,28 @@ pub async fn create_webhook(
     .bind(&secret)
     .fetch_one(&state.pg_pool)
     .await
-    .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to create webhook"))?;
+    .map_err(|_| {
+        api_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to create webhook",
+        )
+    })?;
 
-    let webhook_id: Uuid = row
-        .try_get("id")
-        .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to parse webhook ID"))?;
+    let webhook_id: Uuid = row.try_get("id").map_err(|_| {
+        api_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to parse webhook ID",
+        )
+    })?;
 
-    log_api_call(&state, Some(&principal), "/gateway/v1/webhooks", "POST", 200).await;
+    log_api_call(
+        &state,
+        Some(&principal),
+        "/gateway/v1/webhooks",
+        "POST",
+        200,
+    )
+    .await;
 
     Ok(Json(json!({
         "success": true,
@@ -946,7 +1109,10 @@ pub async fn list_webhooks(
         .map_err(|e| auth_error_response(e, "Invalid API key"))?;
 
     if !has_permission(&principal, "webhooks:manage") {
-        return Err(api_error(StatusCode::FORBIDDEN, "This key cannot view webhooks"));
+        return Err(api_error(
+            StatusCode::FORBIDDEN,
+            "This key cannot view webhooks",
+        ));
     }
 
     let merchant_id = merchant_id_from_principal(&principal)?;
@@ -993,7 +1159,10 @@ pub async fn webhook_deliveries(
         .map_err(|e| auth_error_response(e, "Invalid API key"))?;
 
     if !has_permission(&principal, "webhooks:manage") {
-        return Err(api_error(StatusCode::FORBIDDEN, "This key cannot view webhook deliveries"));
+        return Err(api_error(
+            StatusCode::FORBIDDEN,
+            "This key cannot view webhook deliveries",
+        ));
     }
 
     let merchant_id = merchant_id_from_principal(&principal)?;
@@ -1053,7 +1222,10 @@ pub async fn test_webhook(
         .map_err(|e| auth_error_response(e, "Invalid API key"))?;
 
     if !has_permission(&principal, "webhooks:manage") {
-        return Err(api_error(StatusCode::FORBIDDEN, "This key cannot test webhooks"));
+        return Err(api_error(
+            StatusCode::FORBIDDEN,
+            "This key cannot test webhooks",
+        ));
     }
 
     let merchant_id = merchant_id_from_principal(&principal)?;
@@ -1094,7 +1266,14 @@ pub async fn test_webhook(
     )
     .await;
 
-    log_api_call(&state, Some(&principal), "/gateway/v1/webhooks/:id/test", "POST", 200).await;
+    log_api_call(
+        &state,
+        Some(&principal),
+        "/gateway/v1/webhooks/:id/test",
+        "POST",
+        200,
+    )
+    .await;
 
     Ok(Json(json!({
         "success": true,
@@ -1112,22 +1291,24 @@ pub async fn delete_webhook(
         .map_err(|e| auth_error_response(e, "Invalid API key"))?;
 
     if !has_permission(&principal, "webhooks:manage") {
-        return Err(api_error(StatusCode::FORBIDDEN, "This key cannot delete webhooks"));
+        return Err(api_error(
+            StatusCode::FORBIDDEN,
+            "This key cannot delete webhooks",
+        ));
     }
 
     let merchant_id = merchant_id_from_principal(&principal)?;
     let webhook_uuid = Uuid::parse_str(&id)
         .map_err(|_| api_error(StatusCode::BAD_REQUEST, "Invalid webhook ID"))?;
 
-    let affected = sqlx::query(
-        "UPDATE webhooks SET is_active = FALSE WHERE id = $1 AND merchant_id = $2",
-    )
-    .bind(webhook_uuid)
-    .bind(merchant_id)
-    .execute(&state.pg_pool)
-    .await
-    .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Database error"))?
-    .rows_affected();
+    let affected =
+        sqlx::query("UPDATE webhooks SET is_active = FALSE WHERE id = $1 AND merchant_id = $2")
+            .bind(webhook_uuid)
+            .bind(merchant_id)
+            .execute(&state.pg_pool)
+            .await
+            .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Database error"))?
+            .rows_affected();
 
     if affected == 0 {
         return Err(api_error(StatusCode::NOT_FOUND, "Webhook not found"));
@@ -1193,12 +1374,12 @@ pub async fn dev_docs_snippets(
     })))
 }
 
-fn evaluate_test_card(card_number: &str, pin: &str) -> Option<bool> {
+fn evaluate_test_card(card_number: &str, pin: Option<&str>) -> Option<bool> {
     if card_number == "4242424242424242" {
-        return Some(pin == "1234");
+        return Some(pin.unwrap_or("1234") == "1234");
     }
     if card_number == "5555555555554444" {
-        return Some(pin == "1234");
+        return Some(pin.unwrap_or("1234") == "1234");
     }
     if card_number == "4000000000000002" {
         return Some(false);
@@ -1206,7 +1387,9 @@ fn evaluate_test_card(card_number: &str, pin: &str) -> Option<bool> {
     None
 }
 
-fn merchant_id_from_principal(principal: &ApiPrincipal) -> Result<Uuid, (StatusCode, HeaderMap, Json<Value>)> {
+fn merchant_id_from_principal(
+    principal: &ApiPrincipal,
+) -> Result<Uuid, (StatusCode, HeaderMap, Json<Value>)> {
     match principal {
         ApiPrincipal::Merchant { merchant_id, .. } => Ok(*merchant_id),
         _ => Err(api_error(

@@ -1,294 +1,556 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  Building2,
+  Copy,
+  CreditCard,
+  LogOut,
+  RefreshCw,
+  ShieldCheck,
+  User,
+  WalletCards,
+} from "lucide-react";
 
+import BrandLogo from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { api } from "@/lib/api";
-import { sdkRoadmap } from "@/lib/subscriptions";
+import { clearDeveloperSession, getDeveloperSession } from "@/lib/session";
 
-type MerchantRegistration = {
+// Types
+type DeveloperProfile = {
+  company_name: string;
+  contact_name: string;
+  email: string;
+  plan: string;
+  monthly_calls: number;
+  call_limit: number;
+};
+
+type MerchantSummary = {
   merchant_id: string;
-  merchant_uuid: string;
-  api_key: string;
-  api_key_prefix: string;
-  checkout_base_url: string;
+  name: string;
+  business_name?: string;
+  support_email: string;
   status: string;
+  created_at: string;
+  gross_volume: number;
+  available_balance: number;
 };
 
-type IntentResponse = {
-  intent_id: string;
-  status: string;
-  amount: number;
-  currency: string;
-  checkout_url: string;
-  client_secret: string;
+type OverviewResponse = {
+  developer: DeveloperProfile;
+  merchants: MerchantSummary[];
 };
 
-type BalanceResponse = {
-  gross: number;
-  refunded: number;
-  payouts: number;
-  pending: number;
-  available: number;
-  currency: string;
-};
+function formatMoney(amount: number): string {
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+  }).format(amount / 1000);
+}
+
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
 
 export default function DeveloperDashboardPage() {
-  const [developerKey, setDeveloperKey] = useState("");
-  const [merchant, setMerchant] = useState<MerchantRegistration | null>(null);
-  const [merchantKey, setMerchantKey] = useState("");
-  const [intent, setIntent] = useState<IntentResponse | null>(null);
-  const [balance, setBalance] = useState<BalanceResponse | null>(null);
-  const [snippets, setSnippets] = useState<Record<string, string> | null>(null);
+  const router = useRouter();
+  const [session, setSession] = useState(getDeveloperSession());
+  const [overview, setOverview] = useState<OverviewResponse | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [copiedValue, setCopiedValue] = useState<string | null>(null);
+  const [selectedMerchantId, setSelectedMerchantId] = useState<string>("");
 
-  const activeMerchantKey = useMemo(() => {
-    if (merchantKey.trim().length > 0) {
-      return merchantKey.trim();
+  const [merchantForm, setMerchantForm] = useState({
+    name: "",
+    support_email: "",
+  });
+
+  const [intentForm, setIntentForm] = useState({
+    amount: "42000",
+    currency: "TND",
+    description: "",
+  });
+
+  // Check session on load
+  useEffect(() => {
+    if (!session) {
+      router.replace("/dev");
+      return;
     }
-    return merchant?.api_key ?? "";
-  }, [merchant?.api_key, merchantKey]);
+    loadOverview();
+  }, []);
 
-  async function registerMerchant(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError(null);
-    setBusyAction("register-merchant");
-
+  async function loadOverview() {
     try {
-      const form = new FormData(e.currentTarget);
-      const { data } = await api.post<MerchantRegistration>(
-        "/gateway/v1/merchants/register",
-        {
-          name: form.get("name"),
-          business_name: form.get("business_name"),
-          support_email: form.get("support_email"),
-          webhook_url: form.get("webhook_url") || undefined,
+      setLoading(true);
+      const { data } = await api.get<OverviewResponse>("/dev/portal/overview", {
+        headers: {
+          "X-Developer-Token": session?.developerApiKey || "",
         },
-        {
-          headers: { "X-API-Key": developerKey },
-        }
-      );
-      setMerchant(data);
-      setMerchantKey(data.api_key);
-      setIntent(null);
-      setBalance(null);
+      });
+      setOverview(data);
+      setError(null);
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? "Unable to register merchant");
+      setError(err?.response?.data?.error || "Failed to load workspace data");
     } finally {
-      setBusyAction(null);
+      setLoading(false);
     }
   }
 
-  async function createIntent(e: FormEvent<HTMLFormElement>) {
+  async function registerMerchant(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    setBusyAction("create-intent");
-
+    setLoading(true);
     try {
-      const form = new FormData(e.currentTarget);
-      const amount = Number(form.get("amount") ?? 0);
+      const payload = {
+        name: merchantForm.name,
+        support_email: merchantForm.support_email,
+      };
 
-      const { data } = await api.post<IntentResponse>(
-        "/gateway/v1/intents",
+      const { data } = await api.post(
+        "/dev/portal/merchants/register",
+        payload,
         {
-          amount,
-          currency: form.get("currency") || "TND",
-          description: form.get("description") || undefined,
-          customer_email: form.get("customer_email") || undefined,
-          customer_name: form.get("customer_name") || undefined,
-          idempotency_key: form.get("idempotency_key") || undefined,
+          headers: {
+            "X-Developer-Token": session?.developerApiKey || "",
+          },
         },
-        {
-          headers: { "X-API-Key": activeMerchantKey },
-        }
       );
 
-      setIntent(data);
+      // Update session with new merchant key
+      if (session && data.api_key) {
+        const updatedSession = {
+          ...session,
+          merchantKeys: {
+            ...session.merchantKeys,
+            [data.merchant_id]: data.api_key,
+          },
+        };
+        localStorage.setItem(
+          "nexapay-dev-session",
+          JSON.stringify(updatedSession),
+        );
+        setSession(updatedSession);
+      }
+
+      setMerchantForm({ name: "", support_email: "" });
+      await loadOverview();
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? "Unable to create intent");
+      setError(err?.response?.data?.error || "Failed to register merchant");
     } finally {
-      setBusyAction(null);
+      setLoading(false);
     }
   }
 
-  async function loadBalance() {
-    setError(null);
-    setBusyAction("load-balance");
+  async function createIntent(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedMerchantId) {
+      setError("Please select a merchant first");
+      return;
+    }
+
+    const merchantKey = session?.merchantKeys?.[selectedMerchantId];
+    if (!merchantKey) {
+      setError("No API key available for selected merchant");
+      return;
+    }
+
+    setLoading(true);
     try {
-      const { data } = await api.get<BalanceResponse>("/gateway/v1/balance", {
-        headers: { "X-API-Key": activeMerchantKey },
+      const payload = {
+        amount: parseInt(intentForm.amount),
+        currency: intentForm.currency,
+        description: intentForm.description || undefined,
+      };
+
+      const { data } = await api.post("/gateway/v1/intents", payload, {
+        headers: {
+          "X-API-Key": merchantKey,
+        },
       });
-      setBalance(data);
+
+      // Show success message
+      setError(null);
+      alert(`Checkout created! URL: ${data.checkout_url}`);
+
+      setIntentForm({
+        amount: "42000",
+        currency: "TND",
+        description: "",
+      });
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? "Unable to load balance");
+      setError(err?.response?.data?.error || "Failed to create payment intent");
     } finally {
-      setBusyAction(null);
+      setLoading(false);
     }
   }
 
-  async function loadSnippets() {
-    setError(null);
-    setBusyAction("load-snippets");
-
+  async function copyValue(label: string, value: string) {
+    if (!value) return;
     try {
-      const { data } = await api.get<{ snippets: Record<string, string> }>("/dev/docs/snippets", {
-        headers: { "X-API-Key": developerKey },
-      });
-      setSnippets(data.snippets);
-    } catch (err: any) {
-      setError(err?.response?.data?.error ?? "Unable to load snippets");
-    } finally {
-      setBusyAction(null);
+      await navigator.clipboard.writeText(value);
+      setCopiedValue(label);
+      setTimeout(() => setCopiedValue(null), 1800);
+    } catch (_err) {
+      setError("Copy failed. Please copy manually.");
     }
   }
 
-  const inputClass = "h-10 rounded-xl border border-white/15 bg-white/5 px-3 text-white placeholder:text-white/45 outline-none focus:border-[var(--brand)]";
+  function logout() {
+    clearDeveloperSession();
+    router.replace("/dev");
+  }
+
+  if (loading && !overview) {
+    return (
+      <main className="min-h-screen bg-gradient-to-b from-[#070911] to-[#0b0f1e] p-6">
+        <div className="mx-auto max-w-6xl">
+          <div className="flex items-center justify-center py-20">
+            <div className="h-12 w-12 animate-spin rounded-full border-4 border-[#2de6c4] border-t-transparent" />
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-10">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-white/45">Gateway Console</p>
-          <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-white">Developer Dashboard</h1>
-          <p className="mt-2 text-sm text-white/70">
-            Payment gateway is live now. Official SDKs coming soon: {sdkRoadmap.join(" and ")}.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Link href="/subscription">
-            <Button variant="accent">Billing and subscriptions</Button>
-          </Link>
-          <Link href="/dev">
-            <Button variant="ghost">Back to developer portal</Button>
-          </Link>
-        </div>
-      </div>
-
-      <Card className="mt-5 p-6">
-        <h2 className="text-lg font-semibold">Developer API Key</h2>
-        <p className="mt-1 text-sm text-white/65">
-          Use your developer key to register merchants and access docs snippets.
-        </p>
-        <input
-          className="mt-3 h-10 w-full rounded-xl border border-white/15 bg-white/5 px-3 font-mono text-sm text-white placeholder:text-white/45 outline-none focus:border-[var(--brand)]"
-          placeholder="nxp_developer_..."
-          value={developerKey}
-          onChange={(e) => setDeveloperKey(e.target.value)}
-        />
-        <div className="mt-3 flex gap-2">
-          <Button onClick={loadSnippets} disabled={!developerKey || busyAction !== null}>
-            {busyAction === "load-snippets" ? "Loading..." : "Load Docs Snippets"}
-          </Button>
-        </div>
-      </Card>
-
-      <Card className="mt-4 p-6">
-        <h2 className="text-lg font-semibold">Register Merchant</h2>
-        <form className="mt-3 grid gap-3 md:grid-cols-2" onSubmit={registerMerchant}>
-          <input name="name" className={inputClass} placeholder="Nexa Store" required />
-          <input
-            name="business_name"
-            className={inputClass}
-            placeholder="Nexa Store SARL"
-          />
-          <input
-            name="support_email"
-            className={inputClass}
-            placeholder="support@nexastore.tn"
-            required
-          />
-          <input
-            name="webhook_url"
-            className={inputClass}
-            placeholder="https://merchant.tn/webhooks/nexapay"
-          />
-          <Button className="md:col-span-2" disabled={!developerKey || busyAction !== null}>
-            {busyAction === "register-merchant" ? "Registering..." : "Register Merchant"}
-          </Button>
-        </form>
-      </Card>
-
-      {merchant ? (
-        <Card className="mt-4 p-6">
-          <p className="text-xs uppercase tracking-[0.25em] text-white/45">Merchant Credentials</p>
-          <p className="mt-2 text-sm">Merchant: <b>{merchant.merchant_id}</b></p>
-          <p className="mt-2 break-all rounded-lg bg-black/45 px-3 py-2 font-mono text-sm text-[#7dffbe]">{merchant.api_key}</p>
-          <p className="mt-2 text-xs text-white/65">Store this key securely. It can create charges, refunds, and payouts.</p>
-        </Card>
-      ) : null}
-
-      <Card className="mt-4 p-6">
-        <h2 className="text-lg font-semibold">Merchant Key Override</h2>
-        <input
-          className="mt-3 h-10 w-full rounded-xl border border-white/15 bg-white/5 px-3 font-mono text-sm text-white placeholder:text-white/45 outline-none focus:border-[var(--brand)]"
-          placeholder="Optional: paste another merchant key"
-          value={merchantKey}
-          onChange={(e) => setMerchantKey(e.target.value)}
-        />
-      </Card>
-
-      <Card className="mt-4 p-6">
-        <h2 className="text-lg font-semibold">Create Payment Intent</h2>
-        <form className="mt-3 grid gap-3 md:grid-cols-2" onSubmit={createIntent}>
-          <input name="amount" type="number" min="1" className={inputClass} placeholder="42000" required />
-          <input name="currency" className={inputClass} placeholder="TND" defaultValue="TND" />
-          <input name="customer_name" className={inputClass} placeholder="Customer name" />
-          <input name="customer_email" className={inputClass} placeholder="customer@email.tn" />
-          <input name="description" className={`${inputClass} md:col-span-2`} placeholder="Order #42" />
-          <input
-            name="idempotency_key"
-            className={`${inputClass} md:col-span-2`}
-            placeholder="order-42-attempt-1"
-          />
-          <Button className="md:col-span-2" disabled={!activeMerchantKey || busyAction !== null}>
-            {busyAction === "create-intent" ? "Creating..." : "Create Intent"}
-          </Button>
-        </form>
-      </Card>
-
-      {intent ? (
-        <Card className="mt-4 p-6">
-          <h3 className="text-lg font-semibold">Intent Created</h3>
-          <p className="mt-2 text-sm">ID: <b>{intent.intent_id}</b></p>
-          <p className="mt-1 text-sm">Status: {intent.status}</p>
-          <p className="mt-1 text-sm">Amount: {intent.amount} {intent.currency}</p>
-          <a className="mt-3 inline-block text-sm font-semibold text-[var(--brand)] underline" href={intent.checkout_url} target="_blank" rel="noreferrer">
-            Open Checkout Page
-          </a>
-        </Card>
-      ) : null}
-
-      <Card className="mt-4 p-6">
-        <h2 className="text-lg font-semibold">Balance Snapshot</h2>
-        <Button className="mt-3" onClick={loadBalance} disabled={!activeMerchantKey || busyAction !== null}>
-          {busyAction === "load-balance" ? "Loading..." : "Load Balance"}
-        </Button>
-        {balance ? (
-          <div className="mt-4 grid gap-2 text-sm md:grid-cols-3">
-            <p>Gross: <b>{balance.gross}</b> {balance.currency}</p>
-            <p>Refunded: <b>{balance.refunded}</b> {balance.currency}</p>
-            <p>Payouts: <b>{balance.payouts}</b> {balance.currency}</p>
-            <p>Pending: <b>{balance.pending}</b> {balance.currency}</p>
-            <p>Available: <b>{balance.available}</b> {balance.currency}</p>
+    <main className="min-h-screen bg-gradient-to-b from-[#070911] to-[#0b0f1e] p-4 md:p-6">
+      <div className="mx-auto max-w-6xl">
+        {/* Header */}
+        <header className="mb-8 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+          <div className="flex items-center gap-3">
+            <Link href="/">
+              <BrandLogo size="md" />
+            </Link>
+            <div>
+              <h1 className="text-xl font-semibold text-white">
+                Developer Console
+              </h1>
+              <p className="text-sm text-white/60">
+                {overview?.developer.company_name}
+              </p>
+            </div>
           </div>
-        ) : null}
-      </Card>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadOverview}
+              disabled={loading}
+            >
+              <RefreshCw
+                className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`}
+              />
+              Refresh
+            </Button>
+            <Button variant="ghost" size="sm" onClick={logout}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Logout
+            </Button>
+          </div>
+        </header>
 
-      {snippets ? (
-        <Card className="mt-4 p-6">
-          <h2 className="text-lg font-semibold">Snippets</h2>
-          <pre className="mt-3 overflow-x-auto rounded-xl bg-black/45 p-4 text-xs text-white/85">
-{Object.entries(snippets)
-  .map(([k, v]) => `${k}\n${v}`)
-  .join("\n\n")}
-          </pre>
-        </Card>
-      ) : null}
+        {/* Error Display */}
+        {error && (
+          <div className="mb-6 rounded-xl border border-red-400/20 bg-red-400/10 p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-red-300">{error}</p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setError(null)}
+                className="text-red-300 hover:text-red-200"
+              >
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        )}
 
-      {error ? <p className="mt-4 text-sm text-ember">{error}</p> : null}
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Left Column - Profile & Merchants */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Developer Profile */}
+            <Card className="p-6">
+              <div className="mb-6 flex items-center gap-3">
+                <User className="h-5 w-5 text-[#2de6c4]" />
+                <h2 className="text-lg font-semibold text-white">
+                  Developer Profile
+                </h2>
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-white/70">Company</span>
+                  <span className="font-medium text-white">
+                    {overview?.developer.company_name}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/70">Contact</span>
+                  <span className="font-medium text-white">
+                    {overview?.developer.contact_name}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/70">Plan</span>
+                  <span className="font-medium text-white">
+                    {overview?.developer.plan}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/70">API Usage</span>
+                  <span className="font-medium text-white">
+                    {overview?.developer.monthly_calls} /{" "}
+                    {overview?.developer.call_limit} calls
+                  </span>
+                </div>
+                {session?.developerApiKey && (
+                  <div className="mt-4 pt-4 border-t border-white/10">
+                    <p className="mb-2 text-sm text-white/70">API Key</p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 overflow-x-auto rounded bg-white/5 px-3 py-2 text-sm text-white/90">
+                        {session.developerApiKey}
+                      </code>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          copyValue("api-key", session.developerApiKey!)
+                        }
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {copiedValue === "api-key" && (
+                      <p className="mt-2 text-xs text-emerald-400">Copied!</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* Merchants List */}
+            <Card className="p-6">
+              <div className="mb-6 flex items-center gap-3">
+                <Building2 className="h-5 w-5 text-[#ffb17f]" />
+                <h2 className="text-lg font-semibold text-white">Merchants</h2>
+              </div>
+              {overview?.merchants.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-white/20 p-8 text-center">
+                  <Building2 className="mx-auto h-12 w-12 text-white/30" />
+                  <p className="mt-4 text-white/70">No merchants yet</p>
+                  <p className="mt-1 text-sm text-white/50">
+                    Create your first merchant below
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {overview?.merchants.map((merchant) => (
+                    <div
+                      key={merchant.merchant_id}
+                      className={`rounded-xl border p-4 transition-colors ${
+                        selectedMerchantId === merchant.merchant_id
+                          ? "border-[#ff8f5a] bg-[#ff8f5a]/10"
+                          : "border-white/10 bg-white/5"
+                      }`}
+                      onClick={() =>
+                        setSelectedMerchantId(merchant.merchant_id)
+                      }
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="font-medium text-white">
+                            {merchant.business_name || merchant.name}
+                          </h3>
+                          <p className="mt-1 text-sm text-white/60">
+                            {merchant.support_email}
+                          </p>
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className="rounded-full bg-white/10 px-2 py-1 text-xs text-white/80">
+                              {merchant.merchant_id}
+                            </span>
+                            <span
+                              className={`rounded-full px-2 py-1 text-xs ${
+                                merchant.status === "active"
+                                  ? "bg-emerald-400/20 text-emerald-300"
+                                  : "bg-white/10 text-white/80"
+                              }`}
+                            >
+                              {merchant.status}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-medium text-white">
+                            {formatMoney(merchant.available_balance)} TND
+                          </p>
+                          <p className="text-sm text-white/60">Available</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+
+          {/* Right Column - Actions */}
+          <div className="space-y-6">
+            {/* Create Merchant */}
+            <Card className="p-6">
+              <div className="mb-6 flex items-center gap-3">
+                <Building2 className="h-5 w-5 text-[#ffb17f]" />
+                <h2 className="text-lg font-semibold text-white">
+                  Register Merchant
+                </h2>
+              </div>
+              <form className="space-y-4" onSubmit={registerMerchant}>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-white/80">
+                    Merchant Name
+                  </label>
+                  <input
+                    className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-white placeholder:text-white/40 focus:border-[#ff8f5a] focus:outline-none"
+                    placeholder="Acme Store"
+                    value={merchantForm.name}
+                    onChange={(e) =>
+                      setMerchantForm({ ...merchantForm, name: e.target.value })
+                    }
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-white/80">
+                    Support Email
+                  </label>
+                  <input
+                    type="email"
+                    className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-white placeholder:text-white/40 focus:border-[#ff8f5a] focus:outline-none"
+                    placeholder="support@acmestore.tn"
+                    value={merchantForm.support_email}
+                    onChange={(e) =>
+                      setMerchantForm({
+                        ...merchantForm,
+                        support_email: e.target.value,
+                      })
+                    }
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Creating..." : "Create Merchant"}
+                </Button>
+              </form>
+            </Card>
+
+            {/* Create Checkout */}
+            <Card className="p-6">
+              <div className="mb-6 flex items-center gap-3">
+                <WalletCards className="h-5 w-5 text-[#2de6c4]" />
+                <h2 className="text-lg font-semibold text-white">
+                  Create Checkout
+                </h2>
+              </div>
+              <form className="space-y-4" onSubmit={createIntent}>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-white/80">
+                    Merchant
+                  </label>
+                  <select
+                    className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-white focus:border-[#ff8f5a] focus:outline-none"
+                    value={selectedMerchantId}
+                    onChange={(e) => setSelectedMerchantId(e.target.value)}
+                    required
+                  >
+                    <option value="">Select merchant</option>
+                    {overview?.merchants.map((merchant) => (
+                      <option
+                        key={merchant.merchant_id}
+                        value={merchant.merchant_id}
+                      >
+                        {merchant.business_name || merchant.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-white/80">
+                    Amount (millimes)
+                  </label>
+                  <input
+                    type="number"
+                    className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-white placeholder:text-white/40 focus:border-[#ff8f5a] focus:outline-none"
+                    placeholder="42000"
+                    value={intentForm.amount}
+                    onChange={(e) =>
+                      setIntentForm({ ...intentForm, amount: e.target.value })
+                    }
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-white/80">
+                    Description
+                  </label>
+                  <input
+                    className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-white placeholder:text-white/40 focus:border-[#ff8f5a] focus:outline-none"
+                    placeholder="Order #123"
+                    value={intentForm.description}
+                    onChange={(e) =>
+                      setIntentForm({
+                        ...intentForm,
+                        description: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={loading || !selectedMerchantId}
+                >
+                  {loading ? "Creating..." : "Create Checkout Link"}
+                </Button>
+              </form>
+            </Card>
+
+            {/* Security Info */}
+            <Card className="p-6">
+              <div className="mb-6 flex items-center gap-3">
+                <ShieldCheck className="h-5 w-5 text-[#2de6c4]" />
+                <h2 className="text-lg font-semibold text-white">
+                  Secure Payments
+                </h2>
+              </div>
+              <div className="space-y-3 text-sm text-white/70">
+                <p>• PCI-compliant card processing</p>
+                <p>• Real-time payment confirmation</p>
+                <p>• Hosted checkout pages</p>
+                <p>• Test environment ready</p>
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <footer className="mt-8 border-t border-white/10 pt-6 text-center">
+          <p className="text-sm text-white/50">
+            NexaPay Developer Portal • Use test card 4242 4242 4242 4242 for
+            payments
+          </p>
+        </footer>
+      </div>
     </main>
   );
 }
