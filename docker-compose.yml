@@ -32,11 +32,11 @@ services:
     build:
       context: ./portal
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:8088
+        NEXT_PUBLIC_API_URL: https://backend.nexapay.space
     ports:
       - "3001:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8088
+      NEXT_PUBLIC_API_URL: https://backend.nexapay.space
     depends_on:
       - nexapay-node
 
