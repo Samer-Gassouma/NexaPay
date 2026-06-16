@@ -49,6 +49,15 @@ interface TestCard {
   description: string;
 }
 
+function escapeHtml(str: string): string {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export default function CheckoutPage() {
   const params = useParams();
   const intentId = String(params?.intentId || "");
@@ -627,6 +636,7 @@ function WalletForm({
   onResult,
   onProcessing,
   onSetError,
+  onRedirect,
 }: {
   intent: IntentData;
   amount: number;
@@ -909,6 +919,7 @@ function CardForm({
   onResult,
   onProcessing,
   onSetError,
+  onRedirect,
 }: {
   intent: IntentData;
   amount: number;
@@ -1428,11 +1439,11 @@ function SuccessOverlay({
 <!DOCTYPE html><html><head><title>Receipt</title></head>
 <body style="font-family:sans-serif;max-width:400px;margin:40px auto;padding:20px;border:1px solid #eee;border-radius:12px;">
 <h2 style="text-align:center;margin-bottom:24px;">NexaPay Receipt</h2>
-<p><strong>Merchant:</strong> ${intent.agent_name}</p>
+<p><strong>Merchant:</strong> ${escapeHtml(intent.agent_name)}</p>
 <p><strong>Amount:</strong> ${formatAmount(amount)}</p>
 <p><strong>Status:</strong> Paid</p>
 <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
-${intent.order_id ? `<p><strong>Order:</strong> #${intent.order_id}</p>` : ""}
+${intent.order_id ? `<p><strong>Order:</strong> #${escapeHtml(intent.order_id)}</p>` : ""}
 <p style="margin-top:24px;text-align:center;color:#888;font-size:12px;">Secured by NexaPay</p>
 </body></html>`;
             const blob = new Blob([receipt], { type: "text/html" });

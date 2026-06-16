@@ -33,6 +33,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Status dashboard — public
+  if (pathname.startsWith("/status")) {
+    return NextResponse.next();
+  }
+
   // Legal pages — public on any domain
   if (
     pathname === "/terms" ||
@@ -62,6 +67,12 @@ export function middleware(request: NextRequest) {
     }
     // Default / to /dashboard
     const targetPath = pathname === "/" ? "/sandbox/dashboard" : `/sandbox${pathname}`;
+    return NextResponse.rewrite(new URL(targetPath, request.url));
+  }
+
+  // ─── status.nexapay.space — Validator Status Dashboard ───
+  if (hostname.startsWith("status.")) {
+    const targetPath = pathname === "/" ? "/status" : `/status${pathname}`;
     return NextResponse.rewrite(new URL(targetPath, request.url));
   }
 

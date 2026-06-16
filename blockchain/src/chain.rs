@@ -162,14 +162,19 @@ impl Blockchain {
 
     // ─── Quorum calculation ───
 
-    /// Returns the minimum number of validators needed to commit a block (2/3 + 1).
+    /// Returns the minimum number of validators needed to commit a block.
+    /// Adaptive: scales down when validators go offline so the chain never stalls.
+    /// - 1 active → quorum 1 (single-validator mode)
+    /// - 2 active → quorum 2 (both must agree, no tolerance)
+    /// - 3+ active → 2/3 + 1 (BFT, tolerates floor((N-1)/3) failures)
     pub fn quorum_size(&self) -> usize {
         let active_count = self.active_validator_count();
-        if active_count == 0 {
+        if active_count <= 1 {
             return 1;
         }
-        // Byzantine fault tolerance: need > 2/3
-        // For 3 validators: 3, for 4: 3, for 5: 4, for 7: 5
+        if active_count == 2 {
+            return 2;
+        }
         ((active_count * 2) / 3) + 1
     }
 
@@ -523,16 +528,20 @@ impl Blockchain {
         false
     }
 
-    /// Legacy mine_block — kept for backward compatibility but delegates to
-    /// propose + commit in single-validator mode.
+    /// Mine a block directly. Used when:
+    /// - Single-validator mode (count <= 1)
+    /// - Adaptive fallback: quorum unreachable due to offline nodes
+    /// In multi-validator mode with quorum reachable, use consensus instead.
     pub fn mine_block(
         &mut self,
         validator_address: &str,
         validator_private_key: &str,
         validator_public_key: &str,
     ) -> Result<Block, ChainError> {
-        // If we have multiple validators, refuse legacy mining
-        if self.active_validator_count() > 1 {
+        let active = self.active_validator_count();
+        let quorum = self.quorum_size();
+        // Refuse direct mining only if there are enough nodes for BFT consensus
+        if active > 2 && quorum > 1 {
             return Err(ChainError::InvalidProposal);
         }
 
