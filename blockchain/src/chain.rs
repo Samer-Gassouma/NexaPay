@@ -530,7 +530,7 @@ impl Blockchain {
 
     /// Mine a block directly. Used when:
     /// - Single-validator mode (count <= 1)
-    /// - Adaptive fallback: quorum unreachable due to offline nodes
+    /// - Adaptive fallback: not enough validators online to reach quorum
     /// In multi-validator mode with quorum reachable, use consensus instead.
     pub fn mine_block(
         &mut self,
@@ -540,8 +540,11 @@ impl Blockchain {
     ) -> Result<Block, ChainError> {
         let active = self.active_validator_count();
         let quorum = self.quorum_size();
-        // Refuse direct mining only if there are enough nodes for BFT consensus
-        if active > 2 && quorum > 1 {
+        // Only allow direct mining when there aren't enough validators to
+        // reach BFT quorum (adapts to node failures). When quorum IS reachable,
+        // blocks must go through proper consensus (propose → vote → commit).
+        // Exception: quorum of 1 means single-validator mode — always allow.
+        if quorum > 1 && active >= quorum {
             return Err(ChainError::InvalidProposal);
         }
 
