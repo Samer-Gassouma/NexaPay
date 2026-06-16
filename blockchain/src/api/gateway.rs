@@ -638,7 +638,7 @@ pub async fn confirm_intent(
     enforce_confirm_attempt_limit(&state, &request_ip).await?;
 
     let row = sqlx::query(
-        "SELECT id, merchant_id, amount, fee_amount, currency, status, description, customer_email, created_at
+        "SELECT id, merchant_id, amount, fee_amount, currency, status, description, customer_email, created_at, success_url
          FROM payment_intents WHERE intent_id = $1 LIMIT 1",
     )
     .bind(&intent_id)
@@ -662,6 +662,7 @@ pub async fn confirm_intent(
         .unwrap_or_else(|_| "requires_confirmation".to_string());
     let variable_amount: bool = row.try_get::<bool, _>("variable_amount").unwrap_or(false);
     let db_amount: i64 = row.try_get::<i64, _>("amount").unwrap_or(0);
+    let merchant_success_url: Option<String> = row.try_get("success_url").ok().flatten();
     let db_fee: i64 = row.try_get::<i64, _>("fee_amount").unwrap_or(0);
     let final_amount = if variable_amount {
         payload.amount.unwrap_or(db_amount)
@@ -691,11 +692,14 @@ pub async fn confirm_intent(
     }
 
     if status == "succeeded" {
+        let redirect = merchant_success_url
+            .clone()
+            .unwrap_or_else(|| format!("{}/checkout/{}?status=succeeded", resolve_portal_url(&state, &headers), intent_id));
         return Ok(Json(json!({
             "success": true,
             "intent_id": intent_id,
             "status": status,
-            "redirect_url": format!("{}/payment/success?intent_id={}&status=succeeded", resolve_portal_url(&state, &headers), intent_id)
+            "redirect_url": redirect
         })));
     }
 
@@ -1182,13 +1186,20 @@ pub async fn confirm_intent(
 
     let redirect_status = if approved { "succeeded" } else { "failed" };
 
+    let redirect = if approved {
+        merchant_success_url.clone().unwrap_or_else(||
+            format!("{}/checkout/{}?status=succeeded", resolve_portal_url(&state, &headers), intent_id))
+    } else {
+        format!("{}/checkout/{}?status=failed", resolve_portal_url(&state, &headers), intent_id)
+    };
+
     Ok(Json(json!({
         "success": approved,
         "intent_id": intent_id,
         "status": final_status,
         "failure_reason": failure_reason,
         "env": state.env,
-        "redirect_url": format!("{}/checkout/{}?status={}", resolve_portal_url(&state, &headers), intent_id, redirect_status),
+        "redirect_url": redirect,
         "receipt_pdf_url": if approved {
             format!("{}/gateway/v1/intents/{}/receipt/pdf", resolve_portal_url(&state, &headers), intent_id)
         } else { String::new() }

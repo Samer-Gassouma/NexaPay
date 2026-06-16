@@ -23,6 +23,8 @@ import {
 interface IntentData {
   intent_id: string;
   amount: number;
+  fee_amount: number;
+  total: number;
   currency: string;
   description?: string;
   agent_name: string;
@@ -76,6 +78,8 @@ export default function CheckoutPage() {
       const intentData: IntentData = {
         intent_id: String(data.intent_id || ""),
         amount: Number(data.amount || 0),
+        fee_amount: Number(data.fee_amount || 0),
+        total: Number(data.total || data.amount || 0),
         currency: String(data.currency || "TND"),
         description: data.description ? String(data.description) : undefined,
         agent_name: String(data.agent_name || "NexaPay Merchant"),
@@ -105,6 +109,8 @@ export default function CheckoutPage() {
       const intentData: IntentData = {
         intent_id: String(data.intent_id || ""),
         amount: Number(data.amount || 0),
+        fee_amount: Number(data.fee_amount || 0),
+        total: Number(data.total || data.amount || 0),
         currency: String(data.currency || "TND"),
         description: data.description ? String(data.description) : undefined,
         agent_name: String(data.agent_name || "NexaPay Merchant"),
@@ -218,6 +224,7 @@ function CheckoutActive({
   const [result, setResult] = React.useState<
     "success" | "declined" | "insufficient_funds" | "error" | null
   >(null);
+  const [redirectUrl, setRedirectUrl] = React.useState<string>("");
   const [debugError, setDebugError] = React.useState("");
 
   const sessionMinutes = 10;
@@ -368,13 +375,35 @@ function CheckoutActive({
               </div>
             </div>
           ) : (
-            <div
-              className="text-4xl font-extrabold"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-            >
-              <span className={isDark ? "text-[#00d4aa]" : "text-[#00AA55]"}>
-                {formatAmount(intent.amount)}
-              </span>
+            <div className="space-y-2">
+              <div
+                className="text-4xl font-extrabold"
+                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              >
+                <span className={isDark ? "text-[#00d4aa]" : "text-[#00AA55]"}>
+                  {formatAmount(intent.amount)}
+                </span>
+              </div>
+              {intent.fee_amount > 0 && (
+                <>
+                  <div className="flex items-center justify-center gap-2 text-sm">
+                    <span className={isDark ? "text-[#666]" : "text-gray-400"}>
+                      NexaPay fee: {formatAmount(intent.fee_amount)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-center gap-2">
+                    <span className={isDark ? "text-[#888]" : "text-gray-500"}>
+                      You pay:{" "}
+                    </span>
+                    <span
+                      className="text-lg font-bold"
+                      style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                    >
+                      {formatAmount(intent.total)}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -528,6 +557,7 @@ function CheckoutActive({
               onResult={setResult}
               onProcessing={setProcessing}
               onSetError={setDebugError}
+              onRedirect={setRedirectUrl}
             />
           ) : (
             <CardForm
@@ -543,6 +573,7 @@ function CheckoutActive({
               onResult={setResult}
               onProcessing={setProcessing}
               onSetError={setDebugError}
+              onRedirect={setRedirectUrl}
             />
           )}
         </div>
@@ -559,7 +590,7 @@ function CheckoutActive({
 
       {/* Result overlays */}
       {result === "success" && (
-        <SuccessOverlay intent={intent} isDark={isDark} amount={amount} />
+        <SuccessOverlay intent={intent} isDark={isDark} amount={amount} redirectUrl={redirectUrl} />
       )}
       {(result === "declined" || result === "insufficient_funds") && (
         <DeclinedOverlay
@@ -608,6 +639,7 @@ function WalletForm({
   ) => void;
   onProcessing: (p: boolean) => void;
   onSetError: (msg: string) => void;
+  onRedirect?: (url: string) => void;
 }) {
   const [pin, setPin] = React.useState("");
   const [step, setStep] = React.useState<"pin" | "otp">("pin");
@@ -661,6 +693,7 @@ function WalletForm({
     onProcessing(false);
 
     if (res.ok && res.data.success) {
+      if (res.data.redirect_url && onRedirect) onRedirect(String(res.data.redirect_url));
       onResult("success");
     } else {
       const err = String(res.data.error || "");
@@ -891,6 +924,7 @@ function CardForm({
   ) => void;
   onProcessing: (p: boolean) => void;
   onSetError: (msg: string) => void;
+  onRedirect?: (url: string) => void;
 }) {
   const [cardNumber, setCardNumber] = React.useState("");
   const [cardHolder, setCardHolder] = React.useState("");
@@ -951,6 +985,7 @@ function CardForm({
 
     console.log("Card confirm response:", res.status, res.data);
     if (res.ok && res.data.success) {
+      if (res.data.redirect_url && onRedirect) onRedirect(String(res.data.redirect_url));
       onResult("success");
     } else {
       const err = String(res.data.error || "");
@@ -1312,11 +1347,23 @@ function SuccessOverlay({
   intent,
   isDark,
   amount,
+  redirectUrl,
 }: {
   intent: IntentData;
   isDark: boolean;
   amount: number;
+  redirectUrl?: string;
 }) {
+  const merchantUrl = redirectUrl || intent.success_url;
+
+  // Auto-redirect to merchant if URL provided
+  React.useEffect(() => {
+    if (merchantUrl) {
+      const t = setTimeout(() => { window.location.href = merchantUrl; }, 3000);
+      return () => clearTimeout(t);
+    }
+  }, [merchantUrl]);
+
   const formatAmount = (millimes: number) => {
     const tnd = (millimes / 1000).toLocaleString("en-US", {
       minimumFractionDigits: 3,
@@ -1367,13 +1414,34 @@ function SuccessOverlay({
       )}
 
       <div className="mt-8 flex w-full max-w-xs flex-col gap-3">
+        {merchantUrl && (
+          <>
+            <p className="text-xs text-center text-white/30">Redirecting you back in 3s...</p>
+            <a href={merchantUrl} className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold bg-[#00d4aa] text-black">
+              <ExternalLink className="h-4 w-4" /> Return to {intent.agent_name}
+            </a>
+          </>
+        )}
         <button
           onClick={() => {
-            // Download PDF receipt from backend
+            const receipt = `
+<!DOCTYPE html><html><head><title>Receipt</title></head>
+<body style="font-family:sans-serif;max-width:400px;margin:40px auto;padding:20px;border:1px solid #eee;border-radius:12px;">
+<h2 style="text-align:center;margin-bottom:24px;">NexaPay Receipt</h2>
+<p><strong>Merchant:</strong> ${intent.agent_name}</p>
+<p><strong>Amount:</strong> ${formatAmount(amount)}</p>
+<p><strong>Status:</strong> Paid</p>
+<p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
+${intent.order_id ? `<p><strong>Order:</strong> #${intent.order_id}</p>` : ""}
+<p style="margin-top:24px;text-align:center;color:#888;font-size:12px;">Secured by NexaPay</p>
+</body></html>`;
+            const blob = new Blob([receipt], { type: "text/html" });
+            const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
-            a.href = `/api/gateway/v1/intents/${intent.intent_id}/receipt/pdf`;
-            a.download = `nexapay-receipt-${intent.intent_id}.pdf`;
+            a.href = url;
+            a.download = `receipt-${intent.intent_id}.html`;
             a.click();
+            URL.revokeObjectURL(url);
           }}
           className={cn(
             "flex w-full items-center justify-center gap-2 rounded-xl border py-3 text-sm font-medium transition-all",
@@ -1385,20 +1453,6 @@ function SuccessOverlay({
           <Download className="h-4 w-4" />
           Download Receipt
         </button>
-        {intent.success_url && (
-          <a
-            href={intent.success_url}
-            className={cn(
-              "flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all",
-              isDark
-                ? "bg-[#00d4aa] text-black hover:bg-[#00d4aa]/90"
-                : "bg-[#00AA55] text-white hover:bg-[#00AA55]/90",
-            )}
-          >
-            <ExternalLink className="h-4 w-4" />
-            Return to {intent.agent_name}
-          </a>
-        )}
       </div>
     </div>
   );
